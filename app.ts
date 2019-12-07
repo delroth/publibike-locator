@@ -106,7 +106,7 @@ function ComputeStationsToTrack(stations: LightStation[], user_loc: LatLon) {
 // Get location from browser navigator API.
 function GetUserLocation() {
     if ("geolocation" in navigator) {
-        return new Promise((resolve, reject) => {
+        return new Promise<LatLon>((resolve, reject) => {
             navigator.geolocation.getCurrentPosition(
                 position => {
                     resolve(<LatLon>{
@@ -148,7 +148,7 @@ function FormatDistance(meters: number): string {
     }
 
     Status("Fetching stations and location…");
-    const [user_loc, all_stations] = await Promise.all([
+    const [user_loc, all_stations] = await Promise.all<LatLon, LightStation[]>([
         GetUserLocation(),
         FetchStationList(),
     ]);
