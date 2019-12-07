@@ -6,6 +6,13 @@ const STATIONS_COUNT_TO_TRACK = 10;
 
 // Number of battery levels to display.
 const BEST_BATTERY_COUNT = 3;
+const BATTERY_STYLES: [number, string, string][] = [
+    // Min. level, character, color.
+    [90, '\u{2588}', 'darkgreen'],
+    [70, '\u{2586}', 'lightgreen'],
+    [50, '\u{2584}', 'orange'],
+    [-Infinity, '\u{2581}', 'red'],
+];
 
 // API base.
 const STATION_LIST_URL = "https://publibike-api.delroth.net/v1/public/stations";
@@ -145,8 +152,8 @@ function FormatDistance(meters: number): string {
         GetUserLocation(),
         FetchStationList(),
     ]);
-
     const to_track = ComputeStationsToTrack(all_stations, user_loc);
+
     Status(`Fetching data for ${to_track.length} stations…`);
     const station_promises = to_track.map(swd => swd.station.id).map(FetchStation);
     const stations_with_distance = (await Promise.all(station_promises))
@@ -154,10 +161,6 @@ function FormatDistance(meters: number): string {
             station: station_status,
             distance: to_track[index].distance,
         });
-
-    $status.style.display = 'none';
-    while ($station_list.firstChild)
-        $station_list.removeChild($station_list.firstChild);
 
     stations_with_distance.map(swd => {
         const $row = document.createElement('tr');
@@ -182,18 +185,18 @@ function FormatDistance(meters: number): string {
         $row.appendChild($ebikes);
 
         const $battery = document.createElement('td');
-
         swd.station.ebikes_battery.slice(0, BEST_BATTERY_COUNT).map(l => {
             const $level = document.createElement('span');
             $level.classList.add('battery');
-            $level.textContent = l >= 90 ? '\u{2588}' : l >= 70 ? '\u{2586}' : l >= 50 ? '\u{2584}' : '\u{2581}';
-            $level.style.color = l >= 90 ? 'darkgreen' : l >= 70 ? 'lightgreen' : l >= 50 ? 'orange' : 'red';
+            const [_, char, color] = BATTERY_STYLES.filter(([min, _1, _2]) => l >= min)[0];
+            $level.textContent = char;
+            $level.style.color = color;
             return $level;
         }).forEach($e => $battery.appendChild($e));
         $row.appendChild($battery);
 
         $station_list.appendChild($row);
-        console.log($row);
     });
+    $status.style.display = 'none';
     $station_table.style.display = 'table';
 })();
