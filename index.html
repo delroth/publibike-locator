@@ -1,268 +1,83 @@
 <!DOCTYPE html>
-
-<html>
-    <head>
-        <title>Publibike around me</title>
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+<html lang="en">
+<head>
+    <title>PubliBikes around me</title>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
-        @import url('https://fonts.googleapis.com/css?family=Roboto');
-
         html { height: 100%; }
         body {
             margin: 0;
             background-color: #eee;
             color: #111;
-            font-family: 'Roboto', sans-serif;
+            font-family: sans-serif;
             height: 100%;
         }
         #status {
-            height: 2em;
-            margin-bottom: 1em;
-            line-height: 2em;
+            position: fixed;
+            top: 0;
+            right: 0;
+            left: 0;
+            line-height: 3rem;
             text-align: center;
             vertical-align: middle;
             background-color: #98fb98;
         }
-        #status-spacer {
-            height: 2em;
-            margin-bottom: 1em;
-        }
-        #not-footer {
-            min-height: 100%;
-            height: auto !important;
-            height: 100%;
-            margin-bottom: -4em;
+        main {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            padding: 1rem;
         }
         footer {
-            margin-top: 1em;
-            height: 3em;
-            line-height: 3em;
+            position: fixed;
+            right: 0;
+            left: 0;
+            bottom: 0;
+            line-height: 3rem;
             text-align: center;
             vertical-align: middle;
             background-color: #ccc;
-            font-size: 0.6em;
+            font-size: .8rem;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+            overflow: hidden;
+            padding: 0 1rem;
         }
         #stations-table {
             display: none;
             text-align: left;
+            width: 100%;
         }
         #stations-table th, #stations-table td {
-            padding-right: 10px;
+            padding: .3rem 1rem .3rem 0;
+        }
+        .battery:not(:last-child) {
+            padding-right: .5rem;
         }
     </style>
-    <script>
-        // Ignore results more than 1000m away.
-        var DISTANCE_THRESHOLD_METERS = 1000;
-
-        // Show the N closest stations.
-        var STATIONS_COUNT_TO_TRACK = 10;
-
-        var STATIONS = null;
-        var TRACKED = null;
-
-        function SetStatus(st) {
-            if (st === null) {
-                $("#status").hide();
-                $("#status-spacer").show();
-            } else {
-                console.log(st);
-                $("#status").show();
-                $("#status-spacer").hide();
-                $("#status").text(st);
-            }
-        }
-
-        function StationsListJsonUrl() {
-            return "https://publibike-api.delroth.net/v1/public/stations";
-        }
-
-        function StationStatusJsonUrl(st_id) {
-            return StationsListJsonUrl() + "/" + st_id;
-        }
-
-        function MapsUrlFromCoords(lat, lon) {
-            return "https://maps.google.com/maps?q=" + lat + "," + lon;
-        }
-
-        // Not super useful for now, but better to have an adapter in case the
-        // underlying format ends up changing.
-        function ParseStations(json) {
-            var parsed = [];
-            json.forEach(station => {
-                parsed.push({
-                    id: station.id,
-                    lat: station.latitude,
-                    lon: station.longitude,
-                });
-            });
-            return parsed;
-        }
-
-        function ParseStationStatus(json) {
-            return {
-                id: json.id,
-                lat: json.latitude,
-                lon: json.longitude,
-                distance: null,  // Injected separately.
-                name: json.name,
-                bikes: json.vehicles.filter(v => v.type.id == 1).length,
-                ebikes: json.vehicles.filter(v => v.type.id == 2).length,
-            };
-        }
-
-        // Haversine formula implementaion.
-        function CoordsDistance(lat1, lon1, lat2, lon2) {
-            function DegToRad(angle) { return angle * Math.PI / 180; }
-
-            var EARTH_DIAMETER_METERS = 12742000;
-            var lat_diff = DegToRad(lat2 - lat1);
-            var lon_diff = DegToRad(lon2 - lon1);
-            var a =
-                Math.sin(lat_diff / 2) * Math.sin(lat_diff / 2) +
-                Math.cos(DegToRad(lat1)) * Math.cos(DegToRad(lat2)) *
-                Math.sin(lon_diff / 2) * Math.sin(lon_diff / 2);
-            var c = Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-            return EARTH_DIAMETER_METERS * c;
-        }
-
-        function FormatDistance(meters) {
-            if (meters < 1000) {
-                return Math.round(meters) + "m";
-            } else {
-                return (Math.round(meters / 100) / 10) + "km";
-            }
-        }
-
-        // Get the N closest stations to the user. Returns [{id, distance}].
-        function ComputeStationsToTrack(user_lat, user_lon) {
-            var to_track = [];
-            var stations_distance = STATIONS.map((station) => {
-                return {
-                    id: station.id,
-                    distance: CoordsDistance(user_lat, user_lon, station.lat, station.lon),
-                };
-            });
-            stations_distance.sort((s1, s2) => s1.distance - s2.distance);
-            stations_distance =
-                stations_distance.filter(s => s.distance <= DISTANCE_THRESHOLD_METERS);
-            return stations_distance.slice(0, STATIONS_COUNT_TO_TRACK);
-        }
-
-        function FetchStationsList() {
-            SetStatus("Fetching list of PubliBike stations...");
-            $.getJSON(StationsListJsonUrl())
-                .fail(() => {
-                    SetStatus("Could not access list of PubliBike stations.");
-                })
-                .done(json => {
-                    STATIONS = ParseStations(json);
-                    console.log("Found " + STATIONS.length + " stations.");
-
-                    GetInitialLocation();
-                });
-        }
-
-        function GetInitialLocation() {
-            SetStatus("Waiting for location...");
-            if ("geolocation" in navigator) {
-                navigator.geolocation.getCurrentPosition(
-                    /* success */ pos => {
-                        FetchTrackedStations(ComputeStationsToTrack(pos.coords.latitude, pos.coords.longitude));
-                    },
-                    /* fail */ () => {
-                        SetStatus("Could not obtain location. Please retry.");
-                    },
-                    /* options */ {
-                        enableHighAccuracy: true,
-                        timeout: 10000,
-                        maximumAge: 0,
-                    });
-            } else {
-                SetStatus("Your web browser does not support the web location API.");
-            }
-        }
-
-        function FetchTrackedStations(to_track) {
-            if (to_track.length == 0) {
-                SetStatus("No station found around you (radius: " +
-                    FormatDistance(DISTANCE_THRESHOLD_METERS) + ").");
-                return;
-            }
-            SetStatus("Obtaining stations information...");
-
-            var data = new Map();
-            var had_failure = false;
-            to_track.forEach(station => {
-                $.getJSON(StationStatusJsonUrl(station.id))
-                    .fail(() => {
-                        SetStatus("Unable to get data for station id " + station.id + ".");
-                        had_failure = true;
-                    })
-                    .done(json => {
-                        if (had_failure) return;
-                        var station_data = ParseStationStatus(json);
-                        station_data.distance = station.distance;
-                        data.set(station.id, station_data);
-                        if (data.size == to_track.length) {
-                            // Re-order the data.
-                            var ordered_data = to_track.map(station => data.get(station.id));
-                            DisplayResults(ordered_data);
-                        }
-                    });
-            });
-        }
-
-        function DisplayResults(stations) {
-            function MakeCell(text) { return $("<td></td>").text(text); }
-            function MakeLinkCell(text, link) {
-                var link = $("<a></a>").text(text).attr("href", link);
-                var cell = $("<td></td>");
-                cell.append(link);
-                return cell;
-            }
-            function MakeRow(cells) {
-                var row = $("<tr></tr>");
-                cells.forEach(cell => row.append(cell));
-                return row;
-            }
-
-            SetStatus(null);
-            var tbody = $("#stations-table tbody");
-            stations.forEach(station => {
-                tbody.append(MakeRow([
-                    MakeLinkCell(station.name, MapsUrlFromCoords(station.lat, station.lon)),
-                    MakeCell(FormatDistance(station.distance)),
-                    MakeCell(station.bikes),
-                    MakeCell(station.ebikes),
-                ]));
-            });
-            $("#stations-table").show();
-        }
-
-        $(document).ready(FetchStationsList);
-    </script>
-    </head>
-    <body>
-        <div id="not-footer">
-            <div id="status">Loading...</div>
-            <div id="status-spacer"></div>
-            <table id="stations-table">
-                <thead>
-                    <tr>
-                        <th>Name</th>
-                        <th>Distance</th>
-                        <th>Bikes</th>
-                        <th>E-Bikes</th>
-                    </tr>
-                </thead>
-                <tbody>
-                </tbody>
-            </table>
-            <div id="footer-push"></div>
-        </div>
-        <footer>
-            <span>Unofficial <a href="https://www.publibike.ch/">PubliBike</a> lookup tool. Developped by <a href="https://github.com/delroth">delroth</a>. All data &copy; PubliBike.</span>
-        </footer>
-    </body>
+</head>
+<body>
+    <div id="status">Loading...</div>
+    <main>
+        <table id="stations-table">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Dist</th>
+                    <th>B</th>
+                    <th>EB</th>
+                    <th>Bat</th>
+                </tr>
+            </thead>
+            <tbody id="stations-list"></tbody>
+        </table>
+    </main>
+    <footer>
+        Unofficial <a href="https://www.publibike.ch/">PubliBike</a> lookup tool. Developed by <a href="https://github.com/delroth">delroth</a>. All data &copy; PubliBike.
+    </footer>
+    <script src="app.js"></script>
+</body>
 </html>
