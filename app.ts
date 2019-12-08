@@ -9,8 +9,8 @@ const BEST_BATTERY_COUNT = 3;
 const BATTERY_STYLES: [number, string, string][] = [
     // Min. level, character, color.
     [90, '\u{2588}', 'darkgreen'],
-    [70, '\u{2586}', 'lightgreen'],
-    [50, '\u{2584}', 'orange'],
+    [60, '\u{2586}', 'lightgreen'],
+    [30, '\u{2584}', 'orange'],
     [-Infinity, '\u{2581}', 'red'],
 ];
 
@@ -188,7 +188,7 @@ function FormatDistance(meters: number): string {
         swd.station.ebikes_battery.slice(0, BEST_BATTERY_COUNT).map(l => {
             const $level = document.createElement('span');
             $level.classList.add('battery');
-            const [_, char, color] = BATTERY_STYLES.filter(([min, _1, _2]) => l >= min)[0];
+            const [, char, color] = BATTERY_STYLES.filter(([min, ,]) => l >= min)[0];
             $level.textContent = char;
             $level.style.color = color;
             return $level;
