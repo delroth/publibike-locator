@@ -114,7 +114,7 @@ function GetUserLocation() {
                         lon: position.coords.longitude
                     });
                 },
-                positionError => reject(positionError),
+                positionError => reject(positionError.message),
                 {
                     enableHighAccuracy: true,
                     timeout: 10_000,
@@ -147,20 +147,37 @@ function FormatDistance(meters: number): string {
         $status.textContent = message;
     }
 
+    function Error(message) {
+        $status.textContent = message;
+        $status.classList.add("error");
+    }
+
     Status("Fetching stations and location…");
-    const [user_loc, all_stations] = await Promise.all<LatLon, LightStation[]>([
-        GetUserLocation(),
-        FetchStationList(),
-    ]);
+    let user_loc, all_stations;
+    try {
+        [user_loc, all_stations] = await Promise.all<LatLon, LightStation[]>([
+            GetUserLocation(),
+            FetchStationList(),
+        ]);
+    } catch (err) {
+        Error(err);
+        return;
+    }
     const to_track = ComputeStationsToTrack(all_stations, user_loc);
 
     Status(`Fetching data for ${to_track.length} stations…`);
     const station_promises = to_track.map(swd => swd.station.id).map(FetchStation);
-    const stations_with_distance = (await Promise.all(station_promises))
-        .map((station_status, index) => <WithDistance<FullStation>>{
-            station: station_status,
-            distance: to_track[index].distance,
-        });
+    let stations_with_distance;
+    try {
+        stations_with_distance = (await Promise.all(station_promises))
+            .map((station_status, index) => <WithDistance<FullStation>>{
+                station: station_status,
+                distance: to_track[index].distance,
+            });
+    } catch (err) {
+        Error(err);
+        return;
+    }
 
     stations_with_distance.map(swd => {
         const $row = document.createElement('tr');
