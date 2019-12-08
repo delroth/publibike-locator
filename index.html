@@ -57,6 +57,20 @@
         #stations-table th, #stations-table td {
             padding: .3rem 1rem .3rem 0;
         }
+        #stations-table tr.battery-row {
+            display: none;
+            text-align: right;
+        }
+        #stations-table tr.battery-row.visible {
+            display: table-row;
+        }
+        .battery-lvl:first-child {
+            font-weight: bold;
+        }
+        .battery-lvl:not(:last-child)::after {
+            content: ' ⋅ ';
+            font-weight: normal;
+        }
         .battery:not(:last-child) {
             padding-right: .5rem;
         }

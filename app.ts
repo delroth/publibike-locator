@@ -29,11 +29,15 @@ interface LightStation {
     pos: LatLon;
 }
 
+interface EBike {
+    name: string;
+    battery: number;
+}
+
 interface FullStation extends LightStation {
     name: string;
     bikes: number;
-    ebikes: number;
-    ebikes_battery: number[];
+    ebikes: EBike[];
 }
 
 interface WithDistance<StationType> {
@@ -50,15 +54,17 @@ function ParseLightStation(json: any): LightStation {
 
 function ParseFullStation(json: any): FullStation {
     const bikes = json.vehicles.filter(v => v.type.id == BikeType.Bike);
-    const ebikes = json.vehicles.filter(v => v.type.id == BikeType.EBike);
+    const ebikes = json.vehicles.filter(v => v.type.id == BikeType.EBike)
+        .map(v => <EBike>{
+            name: v.name,
+            battery: v.ebike_battery_level || -1,
+        })
+        .sort((a, b) => b.battery - a.battery);
     return <FullStation>{
         ...ParseLightStation(json),
         name: json.name,
         bikes: bikes.length,
-        ebikes: ebikes.length,
-        ebikes_battery: ebikes
-            .map(ebike => ebike.ebike_battery_level || 0)
-            .sort((a, b) => b - a),
+        ebikes: ebikes,
     };
 }
 
@@ -198,21 +204,43 @@ function FormatDistance(meters: number): string {
         $row.appendChild($bikes);
 
         const $ebikes = document.createElement('td');
-        $ebikes.textContent = `${swd.station.ebikes}`;
+        $ebikes.textContent = `${swd.station.ebikes.length}`;
         $row.appendChild($ebikes);
 
+        const shown_ebikes = swd.station.ebikes
+            .filter(eb => eb.battery >= 0).slice(0, BEST_BATTERY_COUNT);
+
         const $battery = document.createElement('td');
-        swd.station.ebikes_battery.slice(0, BEST_BATTERY_COUNT).map(l => {
+        shown_ebikes.map(eb => {
             const $level = document.createElement('span');
             $level.classList.add('battery');
-            const [, char, color] = BATTERY_STYLES.filter(([min, ,]) => l >= min)[0];
+            const [, char, color] = BATTERY_STYLES.filter(([min, ,]) => eb.battery >= min)[0];
             $level.textContent = char;
             $level.style.color = color;
             return $level;
         }).forEach($e => $battery.appendChild($e));
         $row.appendChild($battery);
-
         $station_list.appendChild($row);
+
+        if (shown_ebikes.length > 0) {
+            const $battery_row = document.createElement('tr');
+            $battery_row.classList.add("battery-row");
+            const $best_ebikes = document.createElement('td');
+            $best_ebikes.colSpan = 5;
+            shown_ebikes
+                .map(eb => `${eb.name} (${eb.battery}%)`)
+                .forEach(text => {
+                    const $span = document.createElement('span');
+                    $span.textContent = text;
+                    $span.className = "battery-lvl";
+                    $best_ebikes.appendChild($span);
+                });
+            $battery_row.appendChild($best_ebikes);
+            $station_list.appendChild($battery_row);
+            $row.addEventListener('click', function (e) {
+                $battery_row.classList.toggle("visible");
+            });
+        }
     });
     $status.style.display = 'none';
     $station_table.style.display = 'table';
