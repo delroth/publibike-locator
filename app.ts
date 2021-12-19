@@ -161,7 +161,7 @@ function FormatDistance(meters: number): string {
     Status("Fetching stations and location…");
     let user_loc, all_stations;
     try {
-        [user_loc, all_stations] = await Promise.all<LatLon, LightStation[]>([
+        [user_loc, all_stations] = await Promise.all([
             GetUserLocation(),
             FetchStationList(),
         ]);
