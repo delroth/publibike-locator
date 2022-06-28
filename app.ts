@@ -7,11 +7,11 @@ const STATIONS_COUNT_TO_TRACK = 10;
 // Number of battery levels to display.
 const BEST_BATTERY_COUNT = 3;
 const BATTERY_STYLES: [number, string, string][] = [
-    // Min. level, character, color.
-    [90, '\u{2588}', 'darkgreen'],
-    [60, '\u{2586}', 'lightgreen'],
-    [30, '\u{2584}', 'orange'],
-    [-Infinity, '\u{2581}', 'red'],
+    // Min. level, character, class name (for color).
+    [90, '\u{2588}', 'bat-nice'],
+    [60, '\u{2586}', 'bat-meh'],
+    [30, '\u{2584}', 'bat-ugh'],
+    [-Infinity, '\u{2581}', 'bat-zero'],
 ];
 
 // API base.
@@ -48,7 +48,7 @@ interface WithDistance<StationType> {
 function ParseLightStation(json: any): LightStation {
     return <LightStation>{
         id: json.id,
-        pos: <LatLon>{lat: json.latitude, lon: json.longitude},
+        pos: <LatLon>{ lat: json.latitude, lon: json.longitude },
     };
 }
 
@@ -213,10 +213,12 @@ function FormatDistance(meters: number): string {
         const $battery = document.createElement('td');
         shown_ebikes.map(eb => {
             const $level = document.createElement('span');
-            $level.classList.add('battery');
-            const [, char, color] = BATTERY_STYLES.filter(([min, ,]) => eb.battery >= min)[0];
+            const classes = $level.classList;
+            classes.add('battery');
+            BATTERY_STYLES.forEach(([, , class_name]) => classes.remove(class_name));
+            const [, char, class_name] = BATTERY_STYLES.filter(([min, ,]) => eb.battery >= min)[0];
             $level.textContent = char;
-            $level.style.color = color;
+            classes.add(class_name);
             return $level;
         }).forEach($e => $battery.appendChild($e));
         $row.appendChild($battery);

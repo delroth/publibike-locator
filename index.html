@@ -1,39 +1,58 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <title>PubliBikes around me</title>
-    <meta charset="UTF-8"/>
+    <meta charset="UTF-8">
+    <link rel="manifest" href="manifest.json">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
-        html { height: 100%; }
-        body {
-            margin: 0;
-            background-color: #eee;
-            color: #111;
-            font-family: sans-serif;
+        /* https://mycolor.space/?hex=%23992E7F&sub=1 */
+        html {
             height: 100%;
         }
+
+        body {
+            margin: 0;
+            background-color: #e5e0f1;
+            color: #52424d;
+            font-family: system, -apple-system, ".SFNSText-Regular", "San Francisco", Roboto, "Segoe UI", "Helvetica Neue", "Lucida Grande", sans-serif;
+            height: 100%;
+        }
+
+        h1 {
+            font-size: 1.5rem;
+            font-weight: normal;
+            margin: 0;
+            padding: 1rem;
+            text-align: center;
+        }
+
         #status {
             position: fixed;
-            top: 0;
+            top: calc(1.5rem + 1rem * 2);
             right: 0;
             left: 0;
             line-height: 3rem;
             text-align: center;
             vertical-align: middle;
-            background-color: #98fb98;
+            background-color: #00c8a0;
         }
+
         #status.error {
-            background-color: lightcoral;
+            color: #e5e0f1;
+            background-color: #bd005e;
         }
+
         main {
             position: fixed;
-            top: 0;
+            top: calc(1.5rem + 1rem);
             left: 0;
             right: 0;
             bottom: 0;
             padding: 1rem;
         }
+
         footer {
             position: fixed;
             right: 0;
@@ -49,35 +68,61 @@
             overflow: hidden;
             padding: 0 1rem;
         }
+
         #stations-table {
             display: none;
             text-align: left;
             width: 100%;
         }
-        #stations-table th, #stations-table td {
+
+        #stations-table th,
+        #stations-table td {
             padding: .3rem 1rem .3rem 0;
         }
+
         #stations-table tr.battery-row {
             display: none;
             text-align: right;
         }
+
         #stations-table tr.battery-row.visible {
             display: table-row;
         }
+
         .battery-lvl:first-child {
             font-weight: bold;
         }
+
         .battery-lvl:not(:last-child)::after {
             content: ' ⋅ ';
             font-weight: normal;
         }
+
         .battery:not(:last-child) {
             padding-right: .5rem;
         }
+
+        .bat-nice {
+            color: #005b3d;
+        }
+
+        .bat-meh {
+            color: #00c8a0;
+        }
+
+        .bat-ugh {
+            color: #ff9557;
+        }
+
+        .bat-zero {
+            color: #bd005e;
+        }
     </style>
 </head>
+
 <body>
-    <div id="status">Loading...</div>
+    <div id="status">Loading…</div>
+    <h1>PubliBike Locator</h1>
     <main>
         <table id="stations-table">
             <thead>
@@ -93,8 +138,14 @@
         </table>
     </main>
     <footer>
-        Unofficial <a href="https://www.publibike.ch/">PubliBike</a> lookup tool. Developed by <a href="https://github.com/delroth">delroth</a>. All data &copy; PubliBike.
+        Unofficial <a href="https://www.publibike.ch/">PubliBike</a> lookup tool.
+        Developed by <a href="https://github.com/delroth">delroth</a>.
+        All data &copy; PubliBike.
     </footer>
     <script src="app.js"></script>
+    <script>
+        if ('serviceWorker' in navigator) navigator.serviceWorker.register('worker.js');
+    </script>
 </body>
+
 </html>
