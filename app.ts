@@ -149,101 +149,112 @@ function FormatDistance(meters: number): string {
     const $station_table = document.getElementById('stations-table');
     const $station_list = document.getElementById('stations-list');
 
-    function Status(message) {
+    document.getElementById('reload')
+        .addEventListener('click', async function (e) {
+            const that = this as HTMLButtonElement;
+            that.disabled = true;
+            setTimeout(() => that.disabled = false, 400);
+            await Load();
+        });
+
+    function Status(message: string) {
         $status.textContent = message;
     }
 
-    function Error(message) {
+    function Error(message: string) {
         $status.textContent = message;
         $status.classList.add("error");
     }
 
-    Status("Fetching stations and location…");
-    let user_loc, all_stations;
-    try {
-        [user_loc, all_stations] = await Promise.all([
-            GetUserLocation(),
-            FetchStationList(),
-        ]);
-    } catch (err) {
-        Error(err);
-        return;
-    }
-    const to_track = ComputeStationsToTrack(all_stations, user_loc);
-
-    Status(`Fetching data for ${to_track.length} stations…`);
-    const station_promises = to_track.map(swd => swd.station.id).map(FetchStation);
-    let stations_with_distance;
-    try {
-        stations_with_distance = (await Promise.all(station_promises))
-            .map((station_status, index) => <WithDistance<FullStation>>{
-                station: station_status,
-                distance: to_track[index].distance,
-            });
-    } catch (err) {
-        Error(err);
-        return;
-    }
-
-    stations_with_distance.map(swd => {
-        const $row = document.createElement('tr');
-
-        const $name = document.createElement('td');
-        const $map_link = document.createElement('a');
-        $map_link.textContent = swd.station.name;
-        $map_link.href = MapsUrlFromCoords(swd.station.pos);
-        $name.appendChild($map_link);
-        $row.appendChild($name);
-
-        const $distance = document.createElement('td');
-        $distance.textContent = FormatDistance(swd.distance);
-        $row.appendChild($distance);
-
-        const $bikes = document.createElement('td');
-        $bikes.textContent = `${swd.station.bikes}`;
-        $row.appendChild($bikes);
-
-        const $ebikes = document.createElement('td');
-        $ebikes.textContent = `${swd.station.ebikes.length}`;
-        $row.appendChild($ebikes);
-
-        const shown_ebikes = swd.station.ebikes
-            .filter(eb => eb.battery >= 0).slice(0, BEST_BATTERY_COUNT);
-
-        const $battery = document.createElement('td');
-        shown_ebikes.map(eb => {
-            const $level = document.createElement('span');
-            const classes = $level.classList;
-            classes.add('battery');
-            BATTERY_STYLES.forEach(([, , class_name]) => classes.remove(class_name));
-            const [, char, class_name] = BATTERY_STYLES.filter(([min, ,]) => eb.battery >= min)[0];
-            $level.textContent = char;
-            classes.add(class_name);
-            return $level;
-        }).forEach($e => $battery.appendChild($e));
-        $row.appendChild($battery);
-        $station_list.appendChild($row);
-
-        if (shown_ebikes.length > 0) {
-            const $battery_row = document.createElement('tr');
-            $battery_row.classList.add("battery-row");
-            const $best_ebikes = document.createElement('td');
-            $best_ebikes.colSpan = 5;
-            shown_ebikes
-                .map(eb => `${eb.name} (${eb.battery}%)`)
-                .forEach(text => {
-                    const $span = document.createElement('span');
-                    $span.textContent = text;
-                    $span.className = "battery-lvl";
-                    $best_ebikes.appendChild($span);
-                });
-            $battery_row.appendChild($best_ebikes);
-            $station_list.appendChild($battery_row);
-            $row.addEventListener('click', function (e) {
-                $battery_row.classList.toggle("visible");
-            });
+    async function Load() {
+        Status("Fetching stations and location…");
+        let user_loc, all_stations;
+        try {
+            [user_loc, all_stations] = await Promise.all([
+                GetUserLocation(),
+                FetchStationList(),
+            ]);
+        } catch (err) {
+            Error(err);
+            return;
         }
-    });
-    $status.style.display = 'none';
-    $station_table.style.display = 'table';
+        const to_track = ComputeStationsToTrack(all_stations, user_loc);
+
+        Status(`Fetching data for ${to_track.length} stations…`);
+        const station_promises = to_track.map(swd => swd.station.id).map(FetchStation);
+        let stations_with_distance;
+        try {
+            stations_with_distance = (await Promise.all(station_promises))
+                .map((station_status, index) => <WithDistance<FullStation>>{
+                    station: station_status,
+                    distance: to_track[index].distance,
+                });
+        } catch (err) {
+            Error(err);
+            return;
+        }
+
+        stations_with_distance.map(swd => {
+            const $row = document.createElement('tr');
+
+            const $name = document.createElement('td');
+            const $map_link = document.createElement('a');
+            $map_link.textContent = swd.station.name;
+            $map_link.href = MapsUrlFromCoords(swd.station.pos);
+            $name.appendChild($map_link);
+            $row.appendChild($name);
+
+            const $distance = document.createElement('td');
+            $distance.textContent = FormatDistance(swd.distance);
+            $row.appendChild($distance);
+
+            const $bikes = document.createElement('td');
+            $bikes.textContent = `${swd.station.bikes}`;
+            $row.appendChild($bikes);
+
+            const $ebikes = document.createElement('td');
+            $ebikes.textContent = `${swd.station.ebikes.length}`;
+            $row.appendChild($ebikes);
+
+            const shown_ebikes = swd.station.ebikes
+                .filter(eb => eb.battery >= 0).slice(0, BEST_BATTERY_COUNT);
+
+            const $battery = document.createElement('td');
+            shown_ebikes.map(eb => {
+                const $level = document.createElement('span');
+                const classes = $level.classList;
+                classes.add('battery');
+                BATTERY_STYLES.forEach(([, , class_name]) => classes.remove(class_name));
+                const [, char, class_name] = BATTERY_STYLES.filter(([min, ,]) => eb.battery >= min)[0];
+                $level.textContent = char;
+                classes.add(class_name);
+                return $level;
+            }).forEach($e => $battery.appendChild($e));
+            $row.appendChild($battery);
+            $station_list.appendChild($row);
+
+            if (shown_ebikes.length > 0) {
+                const $battery_row = document.createElement('tr');
+                $battery_row.classList.add("battery-row");
+                const $best_ebikes = document.createElement('td');
+                $best_ebikes.colSpan = 5;
+                shown_ebikes
+                    .map(eb => `${eb.name} (${eb.battery}%)`)
+                    .forEach(text => {
+                        const $span = document.createElement('span');
+                        $span.textContent = text;
+                        $span.className = "battery-lvl";
+                        $best_ebikes.appendChild($span);
+                    });
+                $battery_row.appendChild($best_ebikes);
+                $station_list.appendChild($battery_row);
+                $row.addEventListener('click', function (e) {
+                    $battery_row.classList.toggle("visible");
+                });
+            }
+        });
+        $status.style.display = 'none';
+        $station_table.style.display = 'table';
+    }
+    await Load();
 })();

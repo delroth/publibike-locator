@@ -8,6 +8,11 @@
             "src": "favicon.svg",
             "type": "image/svg+xml",
             "sizes": "520x520"
+        },
+        {
+            "src": "favicon.png",
+            "type": "image/png",
+            "sizes": "512x512"
         }
     ],
     "start_url": "./",

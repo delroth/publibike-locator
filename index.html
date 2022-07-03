@@ -6,6 +6,9 @@
     <meta charset="UTF-8">
     <link rel="manifest" href="manifest.json">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" href="favicon.svg" sizes="520x520" type="image/xml+svg">
+    <link rel="icon" href="favicon.png" sizes="512x512" type="image/png">
+    <link rel="apple-touch-icon" href="favicon.png" sizes="512x512" type="image/png">
     <style>
         /* https://mycolor.space/?hex=%23992E7F&sub=1 */
         html {
@@ -26,6 +29,19 @@
             margin: 0;
             padding: 1rem;
             text-align: center;
+        }
+
+        #reload {
+            position: absolute;
+            right: 0;
+            top: 0;
+            padding: 1rem 2rem;
+            font-size: 1.7rem;
+            line-height: 2rem;
+            cursor: pointer;
+            background: none;
+            border: none;
+            font-family: inherit;
         }
 
         #status {
@@ -80,6 +96,11 @@
             padding: .3rem 1rem .3rem 0;
         }
 
+        #stations-table th:nth-child(2), #stations-table th:nth-child(3), #stations-table th:nth-child(4),
+        #stations-table td:nth-child(2), #stations-table td:nth-child(3), #stations-table td:nth-child(4) {
+            text-align: right;
+        }
+
         #stations-table tr.battery-row {
             display: none;
             text-align: right;
@@ -123,6 +144,7 @@
 <body>
     <div id="status">Loading…</div>
     <h1>PubliBike Locator</h1>
+    <button type="button" id="reload" title="Refresh">&#x21bb;</button>
     <main>
         <table id="stations-table">
             <thead>
