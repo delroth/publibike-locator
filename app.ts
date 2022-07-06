@@ -194,6 +194,8 @@ function FormatDistance(meters: number): string {
             return;
         }
 
+        // Clear.
+        $station_list.replaceChildren();
         stations_with_distance.map(swd => {
             const $row = document.createElement('tr');
 
