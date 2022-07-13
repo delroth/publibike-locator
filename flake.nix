@@ -9,9 +9,15 @@
   outputs = { self, nixpkgs, flake-utils }: flake-utils.lib.eachDefaultSystem (system:
     let
       pkgs = nixpkgs.legacyPackages.${system};
+      version =
+        if self ? rev then
+          self.rev
+        else
+          builtins.substring 0 8 self.lastModifiedDate;
     in rec {
       packages.publibike-locator = with pkgs; stdenv.mkDerivation {
-        name = "publibike-locator";
+        pname = "publibike-locator";
+        inherit version;
 
         src = lib.cleanSource ./.;
 
