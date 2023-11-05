@@ -25,11 +25,11 @@
 
         installPhase = ''
           mkdir $out
-          cp index.html app.js manifest.json worker.js favicon.svg $out
+          cp index.html app.js manifest.json worker.js favicon512.png favicon192.png favicon.svg $out
         '';
 
         meta = with lib; {
-          homepage = https://delroth.net/publibike/;
+          homepage = "https://delroth.net/publibike/";
           license = with licenses; [ mit ];
           maintainers = with maintainers; [ delroth ];
         };

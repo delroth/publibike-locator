@@ -10,9 +10,14 @@
             "sizes": "520x520"
         },
         {
-            "src": "favicon.png",
+            "src": "favicon512.png",
             "type": "image/png",
             "sizes": "512x512"
+        },
+        {
+            "src": "favicon192.png",
+            "type": "image/png",
+            "sizes": "192x192"
         }
     ],
     "start_url": "./",

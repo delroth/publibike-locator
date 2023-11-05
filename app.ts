@@ -8,9 +8,9 @@ const STATIONS_COUNT_TO_TRACK = 10;
 const BEST_BATTERY_COUNT = 3;
 const BATTERY_STYLES: [number, string, string][] = [
     // Min. level, character, class name (for color).
-    [90, '\u{2588}', 'bat-nice'],
-    [60, '\u{2586}', 'bat-meh'],
-    [30, '\u{2584}', 'bat-ugh'],
+    [80, '\u{2588}', 'bat-nice'],
+    [40, '\u{2586}', 'bat-meh'],
+    [20, '\u{2584}', 'bat-ugh'],
     [-Infinity, '\u{2581}', 'bat-zero'],
 ];
 
@@ -144,6 +144,11 @@ function FormatDistance(meters: number): string {
     }
 }
 
+function FormatEBike(eb: EBike): string {
+    const bat = eb.battery == -1 ? '' : ` (${eb.battery}%)`;
+    return `${eb.name}${bat}`;
+}
+
 (async function () {
     const $status = document.getElementById('status');
     const $station_table = document.getElementById('stations-table');
@@ -219,7 +224,7 @@ function FormatDistance(meters: number): string {
             $row.appendChild($ebikes);
 
             const shown_ebikes = swd.station.ebikes
-                .filter(eb => eb.battery >= 0).slice(0, BEST_BATTERY_COUNT);
+                .slice(0, BEST_BATTERY_COUNT);
 
             const $battery = document.createElement('td');
             shown_ebikes.map(eb => {
@@ -227,9 +232,13 @@ function FormatDistance(meters: number): string {
                 const classes = $level.classList;
                 classes.add('battery');
                 BATTERY_STYLES.forEach(([, , class_name]) => classes.remove(class_name));
-                const [, char, class_name] = BATTERY_STYLES.filter(([min, ,]) => eb.battery >= min)[0];
-                $level.textContent = char;
-                classes.add(class_name);
+                if (eb.battery == -1) {
+                    $level.textContent = '?'
+                } else {
+                    const [, char, class_name] = BATTERY_STYLES.filter(([min, ,]) => eb.battery >= min)[0];
+                    $level.textContent = char;
+                    classes.add(class_name);
+                }
                 return $level;
             }).forEach($e => $battery.appendChild($e));
             $row.appendChild($battery);
@@ -241,7 +250,7 @@ function FormatDistance(meters: number): string {
                 const $best_ebikes = document.createElement('td');
                 $best_ebikes.colSpan = 5;
                 shown_ebikes
-                    .map(eb => `${eb.name} (${eb.battery}%)`)
+                    .map(FormatEBike)
                     .forEach(text => {
                         const $span = document.createElement('span');
                         $span.textContent = text;
