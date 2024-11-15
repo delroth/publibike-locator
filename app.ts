@@ -17,6 +17,13 @@ const BATTERY_STYLES: [number, string, string][] = [
 // API base.
 const STATION_LIST_URL = "https://publibike-api.delroth.net/v1/public/stations";
 
+// List of Shiny (Special Edition) bikes. Crowdsourced list.
+const SHINY_BIKES = [
+    104951,
+    503674,
+    504027,
+];
+
 enum BikeType { Bike = 1, EBike = 2 }
 
 interface LatLon {
@@ -144,11 +151,6 @@ function FormatDistance(meters: number): string {
     }
 }
 
-function FormatEBike(eb: EBike): string {
-    const bat = eb.battery == -1 ? '' : ` (${eb.battery}%)`;
-    return `${eb.name}${bat}`;
-}
-
 (async function () {
     const $status = document.getElementById('status');
     const $station_table = document.getElementById('stations-table');
@@ -250,11 +252,23 @@ function FormatEBike(eb: EBike): string {
                 const $best_ebikes = document.createElement('td');
                 $best_ebikes.colSpan = 5;
                 shown_ebikes
-                    .map(FormatEBike)
-                    .forEach(text => {
+                    .forEach(ebike => {
                         const $span = document.createElement('span');
-                        $span.textContent = text;
-                        $span.className = "battery-lvl";
+                        $span.className = "battery-lvl"
+
+                        const $name = document.createElement('span');
+                        $name.textContent = ebike.name;
+                        if (SHINY_BIKES.includes(parseInt(ebike.name))) {
+                            $name.classList.add("text-shiny");
+                        }
+                        $span.appendChild($name);
+
+                        if (ebike.battery != -1) {
+                            const $bat =  document.createElement('span');
+                            $bat.textContent = ` (${ebike.battery}%)`;
+                            $span.appendChild($bat);
+                        }
+
                         $best_ebikes.appendChild($span);
                     });
                 $battery_row.appendChild($best_ebikes);

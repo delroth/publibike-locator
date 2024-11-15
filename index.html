@@ -138,6 +138,27 @@
         .bat-zero {
             color: #bd005e;
         }
+
+        .text-shiny {
+            padding: 3px 4px;
+            font-weight: bold;
+            background-color:         goldenrod;
+            background-image: linear-gradient(
+                to right,
+                transparent, rgba(238,232,170, 0.8), transparent
+                    );
+            background-size: 200% 100%;
+            animation: shinyEffect 3s linear infinite;
+            border-radius: 3px;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        @keyframes shinyEffect {
+            0% { background-position: -100% center; }
+            50% { background-position: 100% center; }
+            100% { background-position: -100% center; }
+        }
     </style>
 </head>
 
