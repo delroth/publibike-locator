@@ -3,7 +3,7 @@
 
   inputs = {
     flake-utils.url = "github:numtide/flake-utils";
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    nixpkgs.url = "github:NixOS/nixpkgs?ref=f60a759ae7003b321e7ff0c835fc03fa685b91e1";
   };
 
   outputs = { self, nixpkgs, flake-utils }: flake-utils.lib.eachDefaultSystem (system:
@@ -14,18 +14,19 @@
           self.rev
         else
           builtins.substring 0 8 self.lastModifiedDate;
-    in rec {
+    in
+    rec {
       packages.publibike-locator = with pkgs; stdenv.mkDerivation {
         pname = "publibike-locator";
         inherit version;
 
         src = lib.cleanSource ./.;
 
-        nativeBuildInputs = [ nodePackages.typescript ];
+        nativeBuildInputs = [ nodePackages.typescript closurecompiler ];
 
         installPhase = ''
           mkdir $out
-          cp index.html app.js manifest.json worker.js favicon512.png favicon192.png favicon.svg $out
+          cp manifest.json index.html app.min.js worker.js favicon512.png favicon192.png favicon.svg $out
         '';
 
         meta = with lib; {

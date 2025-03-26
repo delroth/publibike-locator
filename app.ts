@@ -13,9 +13,16 @@ const BATTERY_STYLES: [number, string, string][] = [
     [20, '\u{2584}', 'bat-ugh'],
     [-Infinity, '\u{2581}', 'bat-zero'],
 ];
+const UNKNOWN_BAT = -1;
+
+const DEBUG_LOCAL = false;
+const TESTDATA_URL = "http://0.0.0.0:3000";
 
 // API base.
-const STATION_LIST_URL = "https://publibike-api.delroth.net/v1/public/stations";
+const PUBLIBIKE_STATION_URL = "https://publibike-api.delroth.net/v1/public/stations";
+const VELOSPOT_STATION_URL = "https://velospot-api.delroth.net/customer/public/api/pbvsng";
+const VELOSPOT_TYPE_BIKE = 1;  // TODO: unknown, not supported yet.
+const VELOSPOT_TYPE_EBIKE = 2;
 
 // List of Shiny (Special Edition) bikes. Crowdsourced list.
 const SHINY_BIKES = [
@@ -31,9 +38,17 @@ interface LatLon {
     lon: number;
 }
 
+type StationType = "publibike" | "velospot";
+
 interface LightStation {
+    type: StationType;
     id: string;
     pos: LatLon;
+}
+
+interface LightStationWithCount extends LightStation {
+    bikes: number;
+    ebikes: number;
 }
 
 interface EBike {
@@ -52,39 +67,112 @@ interface WithDistance<StationType> {
     distance: number;
 }
 
-function ParseLightStation(json: any): LightStation {
-    return <LightStation>{
-        id: json.id,
-        pos: <LatLon>{ lat: json.latitude, lon: json.longitude },
-    };
+interface VelospotVehicleCount {
+    count: number;
+    type: number;
 }
 
-function ParseFullStation(json: any): FullStation {
-    const bikes = json.vehicles.filter(v => v.type.id == BikeType.Bike);
-    const ebikes = json.vehicles.filter(v => v.type.id == BikeType.EBike)
-        .map(v => <EBike>{
-            name: v.name,
-            battery: v.ebike_battery_level || -1,
-        })
-        .sort((a, b) => b.battery - a.battery);
-    return <FullStation>{
-        ...ParseLightStation(json),
-        name: json.name,
-        bikes: bikes.length,
-        ebikes: ebikes,
-    };
+interface VelospotVehicle {
+    id: string
+    name: string // actualName.lpad(0, 6) + 'e': 4411 -> 004411e
+    type: number
+    // Two digits, seems to max at ~42. Probably a 36V battery pack.
+    voltage: number
+    ebike_km_potential: string // 61-70km
+    lock_number: string // '198' + actualName.lpad(0, 5): 4411 -> 19804411
 }
 
-async function FetchStationList(): Promise<LightStation[]> {
-    const response = await fetch(STATION_LIST_URL);
-    const json = await response.json();
-    return json.map(ParseLightStation);
+interface Getter {
+    stations(): Promise<LightStation[]>;
+    station(id: string): Promise<FullStation>;
 }
 
-async function FetchStation(id: string): Promise<FullStation> {
-    const response = await fetch(`${STATION_LIST_URL}/${id}`);
-    const json = await response.json();
-    return ParseFullStation(json);
+class PublibikeGetter implements Getter {
+    private stationsUrl(): string {
+        return DEBUG_LOCAL
+            ? `${TESTDATA_URL}/publibike.stations.json`
+            : PUBLIBIKE_STATION_URL;
+    }
+    async stations(): Promise<LightStation[]> {
+        const response = await fetch(this.stationsUrl());
+        const json = await response.json();
+        return json.map(({ id, latitude: lat, longitude: lon }) => <LightStation>{
+            type: "publibike",
+            id,
+            pos: <LatLon>{ lat, lon },
+        });
+    }
+
+    private stationUrl(id: string): string {
+        return DEBUG_LOCAL
+            ? `${TESTDATA_URL}/publibike.${id}.json`
+            : `${PUBLIBIKE_STATION_URL}/${id}`;
+    }
+    async station(id: string): Promise<FullStation> {
+        const response = await fetch(this.stationUrl(id));
+        const { name, latitude: lat, longitude: lon, vehicles } = await response.json();
+        const bikes = vehicles.filter(({ type }) => type.id === BikeType.Bike).length;
+        const ebikes = vehicles
+            .filter(({ type }) => type.id === BikeType.EBike)
+            .map(v => <EBike>{
+                name: v.name,
+                battery: v.ebike_battery_level || UNKNOWN_BAT,
+            })
+            .sort((a, b) => b.battery - a.battery);
+        return <FullStation>{
+            type: "publibike",
+            id,
+            name,
+            pos: <LatLon>{ lat, lon },
+            bikes: bikes,
+            ebikes,
+        };
+    }
+}
+
+class VelospotGetter implements Getter {
+    private stationsUrl(): string {
+        return DEBUG_LOCAL
+            ? `${TESTDATA_URL}/velospot.stations.json`
+            : `${VELOSPOT_STATION_URL}/stations`;
+    }
+    async stations(): Promise<LightStation[]> {
+        const response = await fetch(this.stationsUrl());
+        const json = await response.json();
+        return json
+            .filter(({ out_of_service }) => !out_of_service)
+            .map(({ id, latitude: lat, longitude: lon, available_vehicles: vehicles }) => <LightStation>{
+                type: "velospot",
+                id,
+                pos: <LatLon>{ lat, lon },
+                // bikes: (vehicles as VelospotVehicleCount[]).filter(({ type }) => type === VELOSPOT_TYPE_BIKE)[0]?.count ?? 0,
+                // ebikes: (vehicles as VelospotVehicleCount[]).filter(({ type }) => type === VELOSPOT_TYPE_EBIKE)[0]?.count ?? 0,
+            })
+    }
+
+    private stationUrl(id: string): string {
+        return DEBUG_LOCAL
+            ? `${TESTDATA_URL}/velospot.${id}.json`
+            : `${VELOSPOT_STATION_URL}/stationDetails?${new URLSearchParams({ stationId: id }).toString()}`;
+    }
+    async station(id: string): Promise<FullStation> {
+        const response = await fetch(this.stationUrl(id));
+        const { name, vehicles, latitude: lat, longitude: lon } = await response.json();
+        return <FullStation>{
+            type: "velospot",
+            id,
+            pos: <LatLon>{ lat, lon },
+            name: name.replace(/\s-\s[^\s-]+$/, ''),  // Useless network (city) suffix like " - Zürich".
+            bikes: 0,  // TODO once supported.
+            ebikes: (vehicles as VelospotVehicle[])
+                .filter(({ type }) => type === VELOSPOT_TYPE_EBIKE)
+                .map(({ name, voltage }) => <EBike>{
+                    name: name.replace(/e$/, '').replace(/^0+/, ''),
+                    battery: batteryVoltage36v(voltage),
+                })
+                .sort((a, b) => b.battery - a.battery),
+        }
+    }
 }
 
 // Haversine formula.
@@ -105,11 +193,11 @@ function CoordsDistance(pos1: LatLon, pos2: LatLon): number {
 }
 
 // Get the N closest stations to the user, sorted by ascending distance.
-function ComputeStationsToTrack(stations: LightStation[], user_loc: LatLon) {
+function ComputeStationsToTrack<SType extends LightStation>(stations: SType[], userLoc: LatLon): WithDistance<SType>[] {
     return stations.map(
-        station => <WithDistance<LightStation>>{
+        station => <WithDistance<SType>>{
             station: station,
-            distance: CoordsDistance(user_loc, station.pos),
+            distance: CoordsDistance(userLoc, station.pos),
         })
         .sort((s1, s2) => s1.distance - s2.distance)
         .filter(swd => swd.distance <= DISTANCE_THRESHOLD_METERS)
@@ -118,6 +206,11 @@ function ComputeStationsToTrack(stations: LightStation[], user_loc: LatLon) {
 
 // Get location from browser navigator API.
 function GetUserLocation() {
+    if (DEBUG_LOCAL) {
+        return new Promise<LatLon>((resolve, reject) => {
+            resolve(<LatLon>{ lat: 47.38752933398596, lon: 8.52717 });
+        })
+    }
     if ("geolocation" in navigator) {
         return new Promise<LatLon>((resolve, reject) => {
             navigator.geolocation.getCurrentPosition(
@@ -151,6 +244,40 @@ function FormatDistance(meters: number): string {
     }
 }
 
+function FormatEBike(eb: EBike): string {
+    const bat = eb.battery == UNKNOWN_BAT ? '' : ` (${eb.battery}%)`;
+    return `${eb.name}${bat}`;
+}
+
+function reconcileStations(pbStations: WithDistance<FullStation>[], veloStations: WithDistance<FullStation>[]): WithDistance<FullStation>[] {
+    const output: WithDistance<FullStation>[] = [];
+    // Merge stations if they are close enough. Max seen so far: 2.5m.
+    const IS_SAME_THRESHOLD_IN_METERS = 6.0;
+    const mergedPb = new Set<number>(), mergedVelo = new Set<number>();
+    for (let i = 0; i < pbStations.length; i++) {
+        const pb = pbStations[i];
+        for (let j = 0; j < veloStations.length; j++) {
+            if (mergedVelo.has(j)) continue;
+            const velo = veloStations[j];
+            if (CoordsDistance(pb.station.pos, velo.station.pos) <= IS_SAME_THRESHOLD_IN_METERS) {
+                // Prefer Velospot over Publibike.
+                const merged = { ...velo };
+                merged.station.bikes = pb.station.bikes;
+                output.push(merged);
+                mergedPb.add(i);
+                mergedVelo.add(j);
+                break;
+            }
+        }
+    }
+    // In the unlikely case we couldn't merge stations, add them as-is.
+    output.push(
+        ...pbStations.filter((_, i) => !mergedPb.has(i)),
+        ...veloStations.filter((_, j) => !mergedVelo.has(j)))
+    output.sort((a, b) => a.distance - b.distance);
+    return output;
+}
+
 (async function () {
     const $status = document.getElementById('status');
     const $station_table = document.getElementById('stations-table');
@@ -174,58 +301,72 @@ function FormatDistance(meters: number): string {
     }
 
     async function Load() {
+        const pb = new PublibikeGetter();
+        const velo = new VelospotGetter();
+
         Status("Fetching stations and location…");
-        let user_loc, all_stations;
+        let userLoc, allPbStations, allVeloStations;
         try {
-            [user_loc, all_stations] = await Promise.all([
+            [userLoc, allPbStations, allVeloStations] = await Promise.all([
                 GetUserLocation(),
-                FetchStationList(),
+                pb.stations(),
+                velo.stations(),
             ]);
         } catch (err) {
             Error(err);
             return;
         }
-        const to_track = ComputeStationsToTrack(all_stations, user_loc);
+        const pbNear = ComputeStationsToTrack(allPbStations, userLoc);
+        const veloNear = ComputeStationsToTrack(allVeloStations, userLoc);
+        const allPromises = [
+            ...pbNear.map(swd => pb.station(swd.station.id)),
+            ...veloNear.map(swd => velo.station(swd.station.id))
+        ];
+        const allNear = [...pbNear, ...veloNear];
 
-        Status(`Fetching data for ${to_track.length} stations…`);
-        const station_promises = to_track.map(swd => swd.station.id).map(FetchStation);
-        let stations_with_distance;
+        Status(`Fetching data for ${allPromises.length} stations…`);
+        let fullNear: WithDistance<FullStation>[];
         try {
-            stations_with_distance = (await Promise.all(station_promises))
-                .map((station_status, index) => <WithDistance<FullStation>>{
-                    station: station_status,
-                    distance: to_track[index].distance,
+            fullNear = (await Promise.all(allPromises))
+                .map((station, index) => <WithDistance<FullStation>>{
+                    station,
+                    distance: allNear[index].distance,
                 });
         } catch (err) {
             Error(err);
             return;
         }
 
+        // Reconcile stations based on distance heuristic.
+        fullNear = reconcileStations(
+            /* pbNear */ fullNear.slice(0, pbNear.length),
+            /* veloNear */ fullNear.slice(pbNear.length));
+
         // Clear.
         $station_list.replaceChildren();
-        stations_with_distance.map(swd => {
+        fullNear.map(({ station, distance }) => {
             const $row = document.createElement('tr');
 
             const $name = document.createElement('td');
             const $map_link = document.createElement('a');
-            $map_link.textContent = swd.station.name;
-            $map_link.href = MapsUrlFromCoords(swd.station.pos);
+            $map_link.textContent = station.name;
+            $map_link.href = MapsUrlFromCoords(station.pos);
             $name.appendChild($map_link);
             $row.appendChild($name);
 
             const $distance = document.createElement('td');
-            $distance.textContent = FormatDistance(swd.distance);
+            $distance.textContent = FormatDistance(distance);
             $row.appendChild($distance);
 
             const $bikes = document.createElement('td');
-            $bikes.textContent = `${swd.station.bikes}`;
+            $bikes.textContent = `${station.bikes}`;
             $row.appendChild($bikes);
 
             const $ebikes = document.createElement('td');
-            $ebikes.textContent = `${swd.station.ebikes.length}`;
+            $ebikes.textContent = `${station.ebikes.length}`;
             $row.appendChild($ebikes);
 
-            const shown_ebikes = swd.station.ebikes
+            const shown_ebikes = station.ebikes
                 .slice(0, BEST_BATTERY_COUNT);
 
             const $battery = document.createElement('td');
@@ -234,7 +375,7 @@ function FormatDistance(meters: number): string {
                 const classes = $level.classList;
                 classes.add('battery');
                 BATTERY_STYLES.forEach(([, , class_name]) => classes.remove(class_name));
-                if (eb.battery == -1) {
+                if (eb.battery == UNKNOWN_BAT) {
                     $level.textContent = '?'
                 } else {
                     const [, char, class_name] = BATTERY_STYLES.filter(([min, ,]) => eb.battery >= min)[0];
@@ -264,7 +405,7 @@ function FormatDistance(meters: number): string {
                         $span.appendChild($name);
 
                         if (ebike.battery != -1) {
-                            const $bat =  document.createElement('span');
+                            const $bat = document.createElement('span');
                             $bat.textContent = ` (${ebike.battery}%)`;
                             $span.appendChild($bat);
                         }
@@ -283,3 +424,14 @@ function FormatDistance(meters: number): string {
     }
     await Load();
 })();
+
+// https://s3.amazonaws.com/cdn.freshdesk.com/data/helpdesk/attachments/production/65021888467/original/ZoCFINBxbzxa9ZG2Fo_GcyM7dStn_UpT6Q.png
+// Curve-fitted (without 0 outlier).
+function batteryVoltage36v(voltage) {
+    const a = 0.0656;
+    const b = 0.0461;
+    const c = 35.07;
+    if (voltage <= c) return 0;
+    const level = Math.log((voltage - c) / a) / b;
+    return Math.round(level);
+}
