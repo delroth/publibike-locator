@@ -5,7 +5,7 @@ const DISTANCE_THRESHOLD_METERS = 1000;
 const STATIONS_COUNT_TO_TRACK = 10;
 
 // Number of battery levels to display.
-const BEST_BATTERY_COUNT = 3;
+const BEST_BATTERY_COUNT = 4;
 const BATTERY_STYLES: [number, string, string][] = [
     // Min. level, character, class name (for color).
     [80, '\u{2588}', 'bat-nice'],
@@ -170,8 +170,8 @@ class VelospotGetter implements Getter {
                 .filter(({ type }) => type === VELOSPOT_TYPE_EBIKE)
                 .map(({ name, voltage }) => <EBike>{
                     type: "velospot",
-                    name: name.replace(/e$/, '').replace(/^0+/, ''),
-                    battery: batteryVoltage36v(voltage),
+                    name: name.replace(/e$/, ''),
+                    battery: Math.round(batteryVoltage36v(voltage)),
                 })
                 .sort((a, b) => b.battery - a.battery),
         }
@@ -382,7 +382,7 @@ function ReconcileStations(pbStations: WithDistance<FullStation>[], veloStations
                 const classes = $level.classList;
                 classes.add('battery');
                 BATTERY_STYLES.forEach(([, , class_name]) => classes.remove(class_name));
-                if (eb.battery == UNKNOWN_BAT) {
+                if (eb.battery == UNKNOWN_BAT || isNaN(eb.battery)) {
                     $level.textContent = '?'
                 } else {
                     const [, char, class_name] = BATTERY_STYLES.filter(([min, ,]) => eb.battery >= min)[0];
@@ -405,7 +405,7 @@ function ReconcileStations(pbStations: WithDistance<FullStation>[], veloStations
                         $span.className = "battery-lvl"
 
                         const $name = document.createElement('span');
-                        $name.textContent = ebike.name;
+                        $name.innerHTML = `${ebike.type == "publibike" ? '<sup>old</sup>' : ''}${ebike.name}`;
                         if (SHINY_BIKES.includes(parseInt(ebike.name))) {
                             $name.classList.add("text-shiny");
                         }
@@ -432,13 +432,12 @@ function ReconcileStations(pbStations: WithDistance<FullStation>[], veloStations
     await Load();
 })();
 
-// https://s3.amazonaws.com/cdn.freshdesk.com/data/helpdesk/attachments/production/65021888467/original/ZoCFINBxbzxa9ZG2Fo_GcyM7dStn_UpT6Q.png
-// Curve-fitted (without 0 outlier).
-function batteryVoltage36v(voltage) {
-    const a = 0.0656;
-    const b = 0.0461;
-    const c = 35.07;
-    if (voltage <= c) return 0;
-    const level = Math.log((voltage - c) / a) / b;
-    return Math.round(level);
+function batteryVoltage36v(voltage: number): number {
+    const V_max = 42.3;     // Fully charged voltage
+    const V_min = 34.0;     // Fully discharged voltage
+    const b_typical = 0.03; // Steepness factor
+    const c_typical = 50;   // Midpoint (50% State of Charge)
+    if (voltage > V_max) { return 100; }
+    if (voltage < V_min) { return 0; }
+    return Math.max(0, Math.min(100, c_typical - (1 / b_typical) * Math.log((V_max - voltage) / (voltage - V_min))));
 }
