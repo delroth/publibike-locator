@@ -13,7 +13,6 @@ const BATTERY_STYLES: [number, string, string][] = [
     [20, '\u{2584}', 'bat-ugh'],
     [-Infinity, '\u{2581}', 'bat-zero'],
 ];
-const UNKNOWN_BAT = -1;
 
 const DEBUG_LOCAL = false;
 const TESTDATA_URL = "http://0.0.0.0:3000";
@@ -118,7 +117,7 @@ class PublibikeGetter implements Getter {
             .map(v => <EBike>{
                 type: "publibike",
                 name: v.name,
-                battery: v.ebike_battery_level || UNKNOWN_BAT,
+                battery: v.ebike_battery_level || NaN,
             })
             .sort((a, b) => b.battery - a.battery);
         return <FullStation>{
@@ -248,7 +247,7 @@ function FormatDistance(meters: number): string {
 }
 
 function FormatEBike(eb: EBike): string {
-    const bat = eb.battery == UNKNOWN_BAT ? '' : ` (${eb.battery}%)`;
+    const bat = isNaN(eb.battery) ? '' : ` (${eb.battery}%)`;
     return `${eb.name}${bat}`;
 }
 
@@ -382,7 +381,7 @@ function ReconcileStations(pbStations: WithDistance<FullStation>[], veloStations
                 const classes = $level.classList;
                 classes.add('battery');
                 BATTERY_STYLES.forEach(([, , class_name]) => classes.remove(class_name));
-                if (eb.battery == UNKNOWN_BAT || isNaN(eb.battery)) {
+                if (isNaN(eb.battery)) {
                     $level.textContent = '?'
                 } else {
                     const [, char, class_name] = BATTERY_STYLES.filter(([min, ,]) => eb.battery >= min)[0];
@@ -411,7 +410,7 @@ function ReconcileStations(pbStations: WithDistance<FullStation>[], veloStations
                         }
                         $span.appendChild($name);
 
-                        if (ebike.battery != -1) {
+                        if (!isNaN(ebike.battery)) {
                             const $bat = document.createElement('span');
                             $bat.textContent = ` (${ebike.battery}%)`;
                             $span.appendChild($bat);
@@ -433,6 +432,7 @@ function ReconcileStations(pbStations: WithDistance<FullStation>[], veloStations
 })();
 
 function batteryVoltage36v(voltage: number): number {
+    if (!voltage || isNaN(voltage)) { return NaN; }
     const V_max = 42.3;     // Fully charged voltage
     const V_min = 34.0;     // Fully discharged voltage
     const b_typical = 0.03; // Steepness factor
