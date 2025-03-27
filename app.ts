@@ -52,6 +52,7 @@ interface LightStationWithCount extends LightStation {
 }
 
 interface EBike {
+    type: StationType;
     name: string;
     battery: number;
 }
@@ -115,6 +116,7 @@ class PublibikeGetter implements Getter {
         const ebikes = vehicles
             .filter(({ type }) => type.id === BikeType.EBike)
             .map(v => <EBike>{
+                type: "publibike",
                 name: v.name,
                 battery: v.ebike_battery_level || UNKNOWN_BAT,
             })
@@ -167,6 +169,7 @@ class VelospotGetter implements Getter {
             ebikes: (vehicles as VelospotVehicle[])
                 .filter(({ type }) => type === VELOSPOT_TYPE_EBIKE)
                 .map(({ name, voltage }) => <EBike>{
+                    type: "velospot",
                     name: name.replace(/e$/, '').replace(/^0+/, ''),
                     battery: batteryVoltage36v(voltage),
                 })
@@ -249,20 +252,24 @@ function FormatEBike(eb: EBike): string {
     return `${eb.name}${bat}`;
 }
 
-function reconcileStations(pbStations: WithDistance<FullStation>[], veloStations: WithDistance<FullStation>[]): WithDistance<FullStation>[] {
+function ReconcileStations(pbStations: WithDistance<FullStation>[], veloStations: WithDistance<FullStation>[]): WithDistance<FullStation>[] {
     const output: WithDistance<FullStation>[] = [];
-    // Merge stations if they are close enough. Max seen so far: 2.5m.
-    const IS_SAME_THRESHOLD_IN_METERS = 6.0;
+    // Merge stations if they are close enough or have similar name. Max seen so far: 11m.
+    const IS_SAME_THRESHOLD_IN_METERS = 12.0;
     const mergedPb = new Set<number>(), mergedVelo = new Set<number>();
     for (let i = 0; i < pbStations.length; i++) {
         const pb = pbStations[i];
         for (let j = 0; j < veloStations.length; j++) {
             if (mergedVelo.has(j)) continue;
             const velo = veloStations[j];
-            if (CoordsDistance(pb.station.pos, velo.station.pos) <= IS_SAME_THRESHOLD_IN_METERS) {
+            if (pb.station.name.toLowerCase() === velo.station.name.toLowerCase()
+                || CoordsDistance(pb.station.pos, velo.station.pos) <= IS_SAME_THRESHOLD_IN_METERS) {
                 // Prefer Velospot over Publibike.
                 const merged = { ...velo };
                 merged.station.bikes = pb.station.bikes;
+                // By definition ebikes can only belong to one type at a time.
+                merged.station.ebikes.push(...pb.station.ebikes);
+                merged.station.ebikes.sort((a, b) => b.battery - a.battery);
                 output.push(merged);
                 mergedPb.add(i);
                 mergedVelo.add(j);
@@ -338,7 +345,7 @@ function reconcileStations(pbStations: WithDistance<FullStation>[], veloStations
         }
 
         // Reconcile stations based on distance heuristic.
-        fullNear = reconcileStations(
+        fullNear = ReconcileStations(
             /* pbNear */ fullNear.slice(0, pbNear.length),
             /* veloNear */ fullNear.slice(pbNear.length));
 
