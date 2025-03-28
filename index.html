@@ -4,190 +4,19 @@
 <head>
     <title>PubliBikes around me</title>
     <meta charset="UTF-8">
-    <link rel="manifest" href="manifest.json">
+    <link rel="manifest" href="/manifest.json">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel="icon" href="favicon.svg" sizes="520x520" type="image/xml+svg">
-    <link rel="icon" href="favicon512.png" sizes="512x512" type="image/png">
-    <link rel="apple-touch-icon" href="favicon512.png" sizes="512x512" type="image/png">
-    <style>
-        /* https://mycolor.space/?hex=%23992E7F&sub=1 */
-        html {
-            height: 100%;
-        }
-
-        body {
-            margin: 0;
-            background-color: #e5e0f1;
-            color: #52424d;
-            font-family: system, -apple-system, ".SFNSText-Regular", "San Francisco", Roboto, "Segoe UI", "Helvetica Neue", "Lucida Grande", sans-serif;
-            height: 100%;
-        }
-
-        h1 {
-            font-size: 1.5rem;
-            font-weight: normal;
-            margin: 0;
-            padding: 1rem;
-            text-align: center;
-        }
-
-        #reload {
-            position: absolute;
-            right: 0;
-            top: 0;
-            padding: 1rem 2rem;
-            font-size: 1.7rem;
-            line-height: 2rem;
-            cursor: pointer;
-            background: none;
-            border: none;
-            font-family: inherit;
-        }
-
-        #status {
-            position: fixed;
-            top: calc(1.5rem + 1rem * 2);
-            right: 0;
-            left: 0;
-            line-height: 3rem;
-            text-align: center;
-            vertical-align: middle;
-            background-color: #00c8a0;
-        }
-
-        #status.error {
-            color: #e5e0f1;
-            background-color: #bd005e;
-        }
-
-        main {
-            position: fixed;
-            top: calc(1.5rem + 1rem);
-            left: 0;
-            right: 0;
-            bottom: 0;
-            padding: 1rem;
-        }
-
-        footer {
-            position: fixed;
-            right: 0;
-            left: 0;
-            bottom: 0;
-            line-height: 3rem;
-            text-align: center;
-            vertical-align: middle;
-            background-color: #ccc;
-            font-size: .8rem;
-            white-space: nowrap;
-            text-overflow: ellipsis;
-            overflow: hidden;
-            padding: 0 1rem;
-        }
-
-        #stations-table {
-            display: none;
-            text-align: left;
-            width: 100%;
-        }
-
-        #stations-table th,
-        #stations-table td {
-            padding: .3rem 1rem .3rem 0;
-        }
-
-        #stations-table th:nth-child(2), #stations-table th:nth-child(3), #stations-table th:nth-child(4),
-        #stations-table td:nth-child(2), #stations-table td:nth-child(3), #stations-table td:nth-child(4) {
-            text-align: right;
-        }
-
-        #stations-table tr.battery-row {
-            display: none;
-            text-align: right;
-        }
-
-        #stations-table tr.battery-row.visible {
-            display: table-row;
-        }
-
-        .battery-lvl:first-child {
-            font-weight: bold;
-        }
-
-        .battery-lvl:not(:last-child)::after {
-            content: ' ⋅ ';
-            font-weight: normal;
-        }
-
-        .battery:not(:last-child) {
-            padding-right: .5rem;
-        }
-
-        .bat-nice {
-            color: #005b3d;
-        }
-
-        .bat-meh {
-            color: #00c8a0;
-        }
-
-        .bat-ugh {
-            color: #ff9557;
-        }
-
-        .bat-zero {
-            color: #bd005e;
-        }
-
-        .text-shiny {
-            padding: 3px 4px;
-            font-weight: bold;
-            background-color:         goldenrod;
-            background-image: linear-gradient(
-                to right,
-                transparent, rgba(238,232,170, 0.8), transparent
-                    );
-            background-size: 200% 100%;
-            animation: shinyEffect 3s linear infinite;
-            border-radius: 3px;
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-
-        @keyframes shinyEffect {
-            0% { background-position: -100% center; }
-            50% { background-position: 100% center; }
-            100% { background-position: -100% center; }
-        }
-    </style>
+    <link rel="icon" href="/favicon.svg" sizes="520x520" type="image/xml+svg">
+    <link rel="icon" href="/favicon512.png" sizes="512x512" type="image/png">
+    <link rel="apple-touch-icon" href="/favicon512.png" sizes="512x512" type="image/png">
+    <link rel="stylesheet" href="/src/app.sass">
 </head>
 
 <body>
-    <div id="status">Loading…</div>
-    <h1>PubliBike Locator</h1>
-    <button type="button" id="reload" title="Refresh">&#x21bb;</button>
-    <main>
-        <table id="stations-table">
-            <thead>
-                <tr>
-                    <th>Name</th>
-                    <th>Dist</th>
-                    <th>B</th>
-                    <th>EB</th>
-                    <th>Bat</th>
-                </tr>
-            </thead>
-            <tbody id="stations-list"></tbody>
-        </table>
-    </main>
-    <footer>
-        Unofficial <a href="https://www.publibike.ch/">PubliBike</a> lookup tool.
-        Developed by <a href="https://github.com/delroth">delroth</a>.
-        All data &copy; PubliBike.
-    </footer>
-    <script src="app.min.js"></script>
+    <div id="app"></div>
+    <script type="module" src="/src/app.tsx"></script>
     <script>
-        if ('serviceWorker' in navigator) navigator.serviceWorker.register('worker.js');
+        if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js')
     </script>
 </body>
 

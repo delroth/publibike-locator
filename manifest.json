@@ -1,28 +1,28 @@
 {
-    "$schema": "https://json.schemastore.org/web-manifest-combined.json",
-    "short_name": "PubliBike Locator",
-    "name": "PubliBike Locator",
-    "description": "PubliBikes around me",
-    "icons": [
-        {
-            "src": "favicon.svg",
-            "type": "image/svg+xml",
-            "sizes": "520x520"
-        },
-        {
-            "src": "favicon512.png",
-            "type": "image/png",
-            "sizes": "512x512"
-        },
-        {
-            "src": "favicon192.png",
-            "type": "image/png",
-            "sizes": "192x192"
-        }
-    ],
-    "start_url": "./",
-    "scope": "./",
-    "background_color": "#ffffff",
-    "theme_color": "#992e7f",
-    "display": "standalone"
+  "$schema": "https://json.schemastore.org/web-manifest-combined.json",
+  "short_name": "PubliBike Locator",
+  "name": "PubliBike Locator",
+  "description": "PubliBikes around me",
+  "icons": [
+    {
+      "src": "favicon.svg",
+      "type": "image/svg+xml",
+      "sizes": "520x520"
+    },
+    {
+      "src": "favicon512.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    },
+    {
+      "src": "favicon192.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    }
+  ],
+  "start_url": "./",
+  "scope": "./",
+  "background_color": "#ffffff",
+  "theme_color": "#522142",
+  "display": "standalone"
 }

@@ -3,7 +3,7 @@
 
   inputs = {
     flake-utils.url = "github:numtide/flake-utils";
-    nixpkgs.url = "github:NixOS/nixpkgs?ref=f60a759ae7003b321e7ff0c835fc03fa685b91e1";
+    nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-unstable";
   };
 
   outputs = { self, nixpkgs, flake-utils }: flake-utils.lib.eachDefaultSystem (system:
@@ -16,18 +16,23 @@
           builtins.substring 0 8 self.lastModifiedDate;
     in
     rec {
-      packages.publibike-locator = with pkgs; stdenv.mkDerivation {
-        pname = "publibike-locator";
-        inherit version;
+      packages.publibike-locator = with pkgs; mkYarnPackage {
+        name = "publibike-locator";
+        version = "1.0.0";
 
-        src = lib.cleanSource ./.;
+        src = ./.;
+        packageJson = ./package.json;
+        yarnLock = ./yarn.lock;
 
-        nativeBuildInputs = [ nodePackages.typescript closurecompiler ];
+        buildPhase = ''
+          yarn --offline run build
+        '';
 
         installPhase = ''
-          mkdir $out
-          cp manifest.json index.html app.min.js worker.js favicon512.png favicon192.png favicon.svg $out
+          mv deps/publibike-locator/dist $out
         '';
+
+        doDist = false;
 
         meta = with lib; {
           homepage = "https://delroth.net/publibike/";

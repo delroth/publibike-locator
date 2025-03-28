@@ -1,11 +1,8 @@
-all: favicon512.png favicon192.png app.min.js
+all: favicon512.png favicon192.png compile
 
-app.js: app.ts
-	tsc --target es2018 --outFile $@ $<
-
-app.min.js: app.js
-	# '--compilation_level ADVANCED' breaks somehow
-	closure-compiler --js $< --js_output_file $@
+.PHONY: compile
+compile:
+	yarn run build
 
 favicon%.png: favicon.svg
 	inkscape --export-overwrite -o $@ --export-width $* $<

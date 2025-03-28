@@ -1,0 +1,177 @@
+@use 'sass:color'
+
+$thatPurple: #522142
+$textOnThatPurple: #f5f2fb
+$lineHeight: 1.4lh
+
+html
+  height: 100%
+
+body
+  margin: 0
+  padding: 0
+  background-color: #f5f2fb
+  color: #424242
+  font-family: system, -apple-system, ".SFNSText-Regular", "San Francisco", Roboto, "Segoe UI", "Helvetica Neue", "Lucida Grande", sans-serif
+  height: 100svh
+  display: flex
+  flex-direction: column
+
+div#app
+  height: 100vh
+  display: flex
+  flex-direction: column
+
+h1
+  background-color: $thatPurple
+  color: $textOnThatPurple
+  font-size: 1.5rem
+  font-weight: normal
+  margin: 0
+  padding: 1rem
+  text-align: center
+
+main, footer
+  padding: 0 1rem
+
+main
+  flex-direction: column
+  flex-grow: 1
+  overflow-x: hidden
+  overflow-y: auto
+
+aside#loading
+  padding: 1rem 0
+  display: grid
+  grid-template-columns: fit-content(100px) 1fr
+  justify-items: flex-start
+  align-items: flex-start
+  gap: 0.5rem
+
+  label.error
+    width: 100%
+    p
+      background-color: #b0302e
+      color: #f5f2fb
+      margin: 0
+      padding: 0.3rem 1rem
+
+table#stations
+  width: 100%
+  border-collapse: collapse
+  margin: 1rem 0
+
+  $pad: 0.8rem
+
+  th
+    padding: 0 $pad 0 0
+    text-align: left
+
+    &:not(.align-left)
+      text-align: right
+
+  tr
+    td
+      padding: .3rem $pad .3rem 0
+      height: $lineHeight
+
+      &.batteries
+        display: flex
+        flex-direction: row
+        align-items: flex-end
+        gap: 4px
+
+      &:last-child
+        padding-right: 0
+
+    td:not(.align-left)
+      text-align: right
+
+  tr.battery-row
+    td
+      padding-bottom: calc(0.3rem * 2)
+      & > div
+        display: grid
+        gap: 0.5rem
+        grid-template-columns: repeat(auto-fill, minmax(110px, 1fr))
+        align-items: center
+        justify-items: flex-start
+
+    &:not(:last-child)
+      border-bottom: 2px solid #e5e0f1
+
+  tr.battery-row + tr
+    td
+      padding-top: 1rem
+
+.battery-bar
+  display: flex
+  align-items: flex-end
+  background-color: #dad8e0
+  height: 100%
+  box-sizing: border-box
+  width: 11px
+  pointer-events: none
+
+  span
+    display: inline-block
+    height: calc(max(10%, 1% * var(--level)))
+    background-color: hsl(
+      calc(var(--level) * 1.2),
+      85%,
+      35%
+    )
+    box-sizing: border-box
+    width: 11px
+
+  &.unknown
+    &::after
+      content: '?'
+      font-size: small
+      display: block
+      text-align: center
+      width: 100%
+
+.ebike-battery
+  height: $lineHeight
+  display: flex
+  gap: 0.5rem
+  flex-direction: row
+  align-items: center
+
+  &:first-child
+    font-weight: bold
+
+  & > span:nth-child(3)
+    font-size: 0.7rem
+
+  &.old
+    & > span:nth-child(2)
+      text-decoration: underline
+      text-decoration-thickness: 1px
+      text-underline-position: under
+      text-decoration-style: wavy
+      text-decoration-color: #424242
+
+button#refresh
+  display: block
+  height: 2.5lh
+  margin: 1rem
+  outline: none
+  border: none
+  background-color: $thatPurple
+  color: $textOnThatPurple
+  border-radius: 4px
+  font: inherit
+
+  &:disabled
+    opacity: .4
+
+footer
+  padding: 1rem
+  font-size: 0.9rem
+  background-color: #e5e0f1
+  text-align: center
+
+footer, button#refresh
+  flex-shrink: 0
