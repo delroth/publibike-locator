@@ -1,6 +1,6 @@
 import type { Resource } from 'solid-js'
 
-import type { EBike, LatLon, StationRef, Station, WithDistance } from './app'
+import type { EBike, LatLon, Station, StationRef, WithDistance } from './app'
 import { MAX_DISTANCE_IN_METERS, MAX_STATIONS } from './app'
 
 export function batterySort(a: EBike, b: EBike) {
