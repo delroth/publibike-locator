@@ -280,7 +280,7 @@ function App() {
       </main>
       <Show when={canRefresh()}>
         <button type="button" id="refresh" disabled={isRefreshing()} onClick={refetchUserLocation}>
-          Refresh
+          {isRefreshing() ? 'Refreshing…' : 'Refresh'}
         </button>
       </Show>
       <footer>
