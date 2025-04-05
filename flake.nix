@@ -1,9 +1,9 @@
 {
-  description = "A simple JavaScript page to locate bikes at close-by publibike.ch stations in Switzerland";
+  description = "PubliBike Locator is progressive web-app to show nearby PubliBike / Velospot (Switzerland) stations & battery levels";
 
   inputs = {
-    flake-utils.url = "github:numtide/flake-utils";
     nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-unstable";
+    flake-utils.url = "github:numtide/flake-utils";
   };
 
   outputs = { self, nixpkgs, flake-utils }: flake-utils.lib.eachDefaultSystem (system:
