@@ -134,7 +134,9 @@ async function fetchVeloStation(id: string) {
     id,
     name: name.replace(/\s-\s[^\s-]+$/, ''), // Useless city suffix like " - Zürich".
     pos: { latitude, longitude } as LatLon,
-    bikes: 0,
+    bikes: vehicles
+      .filter(({ type }: { type: number }) => type === BikeType.Bike)
+      .length,
     ebikes: vehicles
       .filter(({ type }: { type: number }) => type === BikeType.EBike)
       .map(({ name, voltage }: { name: string, voltage: number }) => ({

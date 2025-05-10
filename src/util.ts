@@ -70,9 +70,8 @@ export async function reconcileStations({ publiStations, veloStations }: { publi
         || distanceInMeters(publi.station.pos, velo.station.pos) <= IS_SAME_THRESHOLD_IN_METERS) {
         // Prefer Velospot over PubliBike.
         const merged = { ...velo }
-        // By design bikes are only in the PubliBike network.
-        merged.station.bikes = publi.station.bikes
-        // By design ebikes can only belong to either network, so no need to dedupe.
+        // By design a bike can only belong to either network, so no need to dedupe.
+        merged.station.bikes += publi.station.bikes
         merged.station.ebikes.push(...publi.station.ebikes)
         merged.station.ebikes.sort(batterySort)
         output.push(merged)
