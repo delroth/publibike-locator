@@ -13,7 +13,8 @@ const MAX_SHOWN_EBIKES = 6
 export const MAX_STATIONS = 10
 export const MAX_DISTANCE_IN_METERS = 1000
 const PUBLIBIKE_STATION_URL = 'https://publibike-api.delroth.net/v1/public/stations'
-const VELOSPOT_STATION_URL = 'https://velospot-api.delroth.net/customer/public/api/pbvsng'
+const VELOSPOT_STATION_URL = 'https://velospot.info/customer/public/api/pbvsng'
+const NO_REFERRER = { referrerPolicy: 'no-referrer' } as RequestInit
 
 export interface LatLon {
   latitude: number
@@ -84,7 +85,7 @@ async function fetchVeloMap() {
     LOCAL_DEBUG
       ? `${TESTDATA_URL}/velospot.stations.json`
       : `${VELOSPOT_STATION_URL}/stations`,
-    { cache: 'force-cache' },
+    { cache: 'force-cache', ...NO_REFERRER },
   )
   const json = await response.json() as any[]
   return json.map(({ id, latitude, longitude }) => ({
@@ -98,6 +99,7 @@ async function fetchPubliStation(id: string) {
     LOCAL_DEBUG
       ? `${TESTDATA_URL}/publibike.${id}.json`
       : `${PUBLIBIKE_STATION_URL}/${id}`,
+    { ...NO_REFERRER },
   )
   const { name, latitude, longitude, vehicles }: {
     name: string
