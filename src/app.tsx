@@ -141,10 +141,10 @@ async function fetchVeloStation(id: string) {
       .length,
     ebikes: vehicles
       .filter(({ type }: { type: number }) => type === BikeType.EBike)
-      .map(({ name, voltage }: { name: string, voltage: number }) => ({
+      .map(({ name, lock_type, voltage }: { name: string, lock_type: number, voltage: number }) => ({
         operator: 'velospot',
         name: name.replace(/e$/, ''),
-        battery: Math.round(batteryVoltage36v(voltage)),
+        battery: lock_type == 1 ? Math.round(batteryVoltage36v(voltage)) : voltage,
       } as EBike))
       .sort(batterySort),
   } as Station
