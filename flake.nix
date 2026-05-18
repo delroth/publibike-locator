@@ -16,23 +16,27 @@
           builtins.substring 0 8 self.lastModifiedDate;
     in
     rec {
-      packages.publibike-locator = with pkgs; mkYarnPackage {
+      packages.publibike-locator = with pkgs; stdenvNoCC.mkDerivation {
         name = "publibike-locator";
         version = "1.0.0";
 
         src = ./.;
-        packageJson = ./package.json;
-        yarnLock = ./yarn.lock;
 
-        buildPhase = ''
-          yarn --offline run build
+        offlineCache = fetchYarnDeps {
+          yarnLock = ./yarn.lock;
+          hash = "sha256-6UkuCNP0lqImxYox8oL4AvR0mKpDqWHI7CPC7XhUdzw=";
+        };
+
+        nativeBuildInputs = [
+          nodejs
+          yarnConfigHook
+          yarnInstallHook
+        ];
+
+        postInstall = ''
+          rm -rf $out
+          mv dist $out
         '';
-
-        installPhase = ''
-          mv deps/publibike-locator/dist $out
-        '';
-
-        doDist = false;
 
         meta = with lib; {
           homepage = "https://delroth.net/publibike/";
