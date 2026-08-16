@@ -1,13 +1,137 @@
 import type { Resource } from 'solid-js'
 
-import type { EBike, LatLon, Station, StationRef, WithDistance } from './app'
-import { MAX_DISTANCE_IN_METERS, MAX_STATIONS } from './app'
+export const MAX_SHOWN_EBIKES = 6
+export const MAX_STATIONS = 10
+export const MAX_DISTANCE_IN_METERS = 1000
+export const TESTDATA_URL = './testdata'
+export const PUBLIBIKE_STATIONS_URL = 'https://rest.publibike.ch/v1/public/all/stations'
+export const VELOSPOT_STATION_URL = PUBLIBIKE_STATIONS_URL
+export const NO_REFERRER = { referrerPolicy: 'no-referrer' } as RequestInit
+
+export const DEFAULT_HEADERS: Record<string, string> = {
+  'Accept': 'application/json, text/plain, */*',
+  'Accept-Language': 'en-US,en;q=0.5',
+  'Origin': 'https://www.publibike.ch',
+  'Referer': 'https://www.publibike.ch/',
+}
+
+export interface LatLon {
+  latitude: number
+  longitude: number
+}
+
+export type Operator = 'publibike' | 'velospot'
+
+export enum BikeType { Bike = 1, EBike = 2 }
+
+export interface StationRef {
+  id: string
+  pos: LatLon
+}
+
+export interface EBike {
+  operator: Operator
+  name: string
+  battery: number
+}
+
+export interface Station extends StationRef {
+  name: string
+  bikes: number
+  ebikes: EBike[]
+}
+
+export interface WithDistance<T> {
+  station: T
+  distance: number
+}
+
+export interface ApiVelospotStation {
+  station_id: string
+  station_name: string
+  station_address?: string
+  lat: string
+  lng: string
+  totalBike?: number
+  totalNonElectricalBike?: number
+  totalElectricalBike?: number
+  totalCargoBike?: number
+  totalEscooter?: number
+  totalGlider?: number
+  stationNumber?: string
+  [key: string]: unknown
+}
+
+export interface ApiStationsResponse {
+  publibike?: {
+    stations?: unknown[]
+  }
+  velospot?: {
+    responseData?: ApiVelospotStation[]
+    [key: string]: unknown
+  }
+  [key: string]: unknown
+}
+
+export function cleanStationName(name: string): string {
+  const lastIndex = name.lastIndexOf(' - ')
+  if (lastIndex !== -1) {
+    const stripped = name.slice(0, lastIndex).trim()
+    if (stripped.length > 0)
+      return stripped
+  }
+  return name.trim()
+}
+
+export function parseStations(data: ApiStationsResponse | ApiVelospotStation[]): Station[] {
+  const rawStations: ApiVelospotStation[] = Array.isArray(data)
+    ? data
+    : (data?.velospot?.responseData ?? [])
+
+  return rawStations.map((station) => {
+    const bikes = station.totalNonElectricalBike ?? 0
+    const ebikesCount = station.totalElectricalBike ?? 0
+    const ebikes: EBike[] = Array.from({ length: ebikesCount }, (_, i) => ({
+      operator: 'velospot',
+      name: `EBike ${i + 1}`,
+      battery: Number.NaN,
+    }))
+    const rawName = station.station_name || `Station #${station.stationNumber || station.station_id}`
+    return {
+      id: station.station_id || station.stationNumber || '',
+      name: cleanStationName(rawName),
+      pos: {
+        latitude: Number.parseFloat(station.lat),
+        longitude: Number.parseFloat(station.lng),
+      },
+      bikes,
+      ebikes,
+    }
+  })
+}
+
+export async function fetchStations(
+  url: string = PUBLIBIKE_STATIONS_URL,
+  init: RequestInit = {},
+): Promise<Station[]> {
+  const response = await fetch(url, {
+    ...init,
+    headers: {
+      ...DEFAULT_HEADERS,
+      ...init.headers,
+    },
+  })
+  const json = await response.json() as ApiStationsResponse
+  return parseStations(json)
+}
+
+export const fetchVeloStations = fetchStations
 
 export function batterySort(a: EBike, b: EBike) {
   return (b.battery || 0) - (a.battery || 0)
 }
 
-function distanceSort(a: WithDistance<any>, b: WithDistance<any>) {
+export function distanceSort(a: WithDistance<any>, b: WithDistance<any>) {
   return a.distance - b.distance
 }
 
@@ -25,24 +149,16 @@ export function batteryVoltage36v(voltage: number): number {
   return Math.max(0, Math.min(100, c_typical - (1 / b_typical) * Math.log((V_max - voltage) / (voltage - V_min))))
 }
 
-export function stationsFetcher(fetcher: (id: string) => Promise<Station>) {
-  return async ({ userLocation, stations }: { userLocation: LatLon, stations: StationRef[] }) => {
-    const near = stations
-      .map(station => ({ station, distance: distanceInMeters(userLocation, station.pos) }))
-      .filter(({ distance }) => distance <= MAX_DISTANCE_IN_METERS)
-      .sort(distanceSort)
-      .slice(0, MAX_STATIONS)
-    const promises = await Promise.allSettled(near.map(
-      async ({ distance, station: { id } }) => ({ distance, station: await fetcher(id) } as WithDistance<Station>),
-    ))
-    return promises
-      .filter(({ status }) => status === 'fulfilled')
-      .map(result => (result as PromiseFulfilledResult<WithDistance<Station>>).value)
-  }
+export function getNearbyStations({ userLocation, stations }: { userLocation: LatLon, stations: Station[] }): WithDistance<Station>[] {
+  return stations
+    .map(station => ({ station, distance: distanceInMeters(userLocation, station.pos) }))
+    .filter(({ distance }) => distance <= MAX_DISTANCE_IN_METERS)
+    .sort(distanceSort)
+    .slice(0, MAX_STATIONS)
 }
 
 // Haversine formula.
-function distanceInMeters(pos1: LatLon, pos2: LatLon): number {
+export function distanceInMeters(pos1: LatLon, pos2: LatLon): number {
   const degToRad = (angle: number): number => angle * Math.PI / 180
   const EARTH_DIAMETER_METERS = 12742000
   const latDiff = degToRad(pos2.latitude - pos1.latitude)
@@ -54,42 +170,6 @@ function distanceInMeters(pos1: LatLon, pos2: LatLon): number {
   return EARTH_DIAMETER_METERS * c
 }
 
-// Merge stations from two sets if they are close enough or have the same name.
-export async function reconcileStations({ publiStations, veloStations }: { publiStations: WithDistance<Station>[], veloStations: WithDistance<Station>[] }) {
-  const output: WithDistance<Station>[] = []
-  const IS_SAME_THRESHOLD_IN_METERS = 12.0 // Max seen so far: 11m.
-  const mergedPb = new Set<number>()
-  const mergedVelo = new Set<number>()
-  for (let i = 0; i < publiStations.length; i++) {
-    const publi = publiStations[i]
-    for (let j = 0; j < veloStations.length; j++) {
-      if (mergedVelo.has(j))
-        continue
-      const velo = veloStations[j]
-      if (publi.station.name.toLowerCase() === velo.station.name.toLowerCase()
-        || distanceInMeters(publi.station.pos, velo.station.pos) <= IS_SAME_THRESHOLD_IN_METERS) {
-        // Prefer Velospot over PubliBike.
-        const merged = { ...velo }
-        // By design a bike can only belong to either network, so no need to dedupe.
-        merged.station.bikes += publi.station.bikes
-        merged.station.ebikes.push(...publi.station.ebikes)
-        merged.station.ebikes.sort(batterySort)
-        output.push(merged)
-        mergedPb.add(i)
-        mergedVelo.add(j)
-        break
-      }
-    }
-  }
-  // In the unlikely case we couldn't merge stations, add them as-is.
-  output.push(
-    ...publiStations.filter((_, i) => !mergedPb.has(i)),
-    ...veloStations.filter((_, j) => !mergedVelo.has(j)),
-  )
-  output.sort(distanceSort)
-  return output
-}
-
 // Why is this not built-in to solid-js?
 export function dependOn<
   TResources extends Record<string, Resource<any>>,
@@ -97,7 +177,7 @@ export function dependOn<
   Out,
 >(
   resources: TResources,
-  actor: (source: TResult) => Promise<Out>,
+  actor: (source: TResult) => Out | Promise<Out>,
 ) {
   const resolver = (): TResult | undefined => {
     for (const key in resources) {

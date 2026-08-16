@@ -1,4 +1,6 @@
 node_modules/
 dist/
+scratch/
 tsconfig.tsbuildinfo
 result
+.envrc.local

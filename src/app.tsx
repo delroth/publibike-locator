@@ -1,56 +1,26 @@
 /* @refresh reload */
 
 import type { Resource } from 'solid-js'
+import type { EBike, LatLon, Station, WithDistance } from './util'
 import { createMemo, createResource, createSignal, For, Show } from 'solid-js'
-import { render } from 'solid-js/web'
 
-import { batterySort, batteryVoltage36v, dependOn, reconcileStations, stationsFetcher } from './util'
+import { render } from 'solid-js/web'
+import {
+  dependOn,
+  fetchStations,
+  getNearbyStations,
+  MAX_SHOWN_EBIKES,
+  NO_REFERRER,
+  PUBLIBIKE_STATIONS_URL,
+} from './util'
 
 const LOCAL_DEBUG = import.meta.env.DEV
-const TESTDATA_URL = './testdata'
-
-const MAX_SHOWN_EBIKES = 6
-export const MAX_STATIONS = 10
-export const MAX_DISTANCE_IN_METERS = 1000
-const PUBLIBIKE_STATION_URL = 'https://publibike-api.delroth.net/v1/public/stations'
-const VELOSPOT_STATION_URL = 'https://velospot.info/customer/public/api/pbvsng'
-const NO_REFERRER = { referrerPolicy: 'no-referrer' } as RequestInit
-
-export interface LatLon {
-  latitude: number
-  longitude: number
-}
-
-type Operator = 'publibike' | 'velospot'
-
-enum BikeType { Bike = 1, EBike = 2 }
-
-export interface StationRef {
-  id: string
-  pos: LatLon
-}
-
-export interface EBike {
-  operator: Operator
-  name: string
-  battery: number
-}
-
-export interface Station extends StationRef {
-  name: string
-  bikes: number
-  ebikes: EBike[]
-}
-
-export interface WithDistance<T> {
-  station: T
-  distance: number
-}
 
 function fetchUserLocation() {
   if (LOCAL_DEBUG) {
     return new Promise<LatLon>((resolve, _reject) => setTimeout(() => {
-      resolve({ latitude: 47.38752933398596, longitude: 8.52717 } as LatLon)
+      // Central Zurich (near Zürich HB / Central)
+      resolve({ latitude: 47.3769, longitude: 8.5417 } as LatLon)
     }, 500))
   }
   return new Promise<LatLon>((resolve, reject) =>
@@ -66,94 +36,17 @@ function fetchUserLocation() {
   )
 }
 
-async function fetchPubliMap() {
-  const response = await fetch(
-    LOCAL_DEBUG
-      ? `${TESTDATA_URL}/publibike.stations.json`
-      : PUBLIBIKE_STATION_URL,
-    { cache: 'force-cache' },
-  )
-  const json = await response.json() as any[]
-  return json.map(({ id, latitude, longitude }) => ({
-    id,
-    pos: { latitude, longitude } as LatLon,
-  } as StationRef))
-}
-
-async function fetchVeloMap() {
-  const response = await fetch(
-    LOCAL_DEBUG
-      ? `${TESTDATA_URL}/velospot.stations.json`
-      : `${VELOSPOT_STATION_URL}/stations`,
+function fetchAppStations() {
+  return fetchStations(
+    PUBLIBIKE_STATIONS_URL,
     { cache: 'force-cache', ...NO_REFERRER },
   )
-  const json = await response.json() as any[]
-  return json.map(({ id, latitude, longitude }) => ({
-    id,
-    pos: { latitude, longitude } as LatLon,
-  } as StationRef))
-}
-
-async function fetchPubliStation(id: string) {
-  const response = await fetch(
-    LOCAL_DEBUG
-      ? `${TESTDATA_URL}/publibike.${id}.json`
-      : `${PUBLIBIKE_STATION_URL}/${id}`,
-    { ...NO_REFERRER },
-  )
-  const { name, latitude, longitude, vehicles }: {
-    name: string
-    latitude: number
-    longitude: number
-    vehicles: any[]
-  } = await response.json()
-  const bikes = vehicles.filter(({ type }) => type.id === BikeType.Bike).length
-  const ebikes = vehicles
-    .filter(({ type }: any) => type.id === BikeType.EBike)
-    .map(({ name, ebike_battery_level }: any) => ({
-      operator: 'publibike',
-      name,
-      battery: ebike_battery_level || Number.NaN,
-    } as EBike))
-    .sort(batterySort)
-  return {
-    id,
-    name,
-    pos: { latitude, longitude } as LatLon,
-    bikes,
-    ebikes,
-  } as Station
-}
-
-async function fetchVeloStation(id: string) {
-  const response = await fetch(
-    LOCAL_DEBUG
-      ? `${TESTDATA_URL}/velospot.${id}.json`
-      : `${VELOSPOT_STATION_URL}/stationDetails?${new URLSearchParams({ stationId: id }).toString()}`,
-  )
-  const { name, latitude, longitude, vehicles }: any = await response.json()
-  return {
-    id,
-    name: name.replace(/\s-\s[^\s-]+$/, ''), // Useless city suffix like " - Zürich".
-    pos: { latitude, longitude } as LatLon,
-    bikes: vehicles
-      .filter(({ type }: { type: number }) => type === BikeType.Bike)
-      .length,
-    ebikes: vehicles
-      .filter(({ type }: { type: number }) => type === BikeType.EBike)
-      .map(({ name, lock_type, voltage }: { name: string, lock_type: number, voltage: number }) => ({
-        operator: 'velospot',
-        name: name.replace(/e$/, ''),
-        battery: lock_type == 1 ? Math.round(batteryVoltage36v(voltage)) : voltage,
-      } as EBike))
-      .sort(batterySort),
-  } as Station
 }
 
 function ebikeBattery(ebike: EBike) {
-  const { name, battery, operator } = ebike
+  const { name, battery } = ebike
   return (
-    <div class="ebike-battery" classList={{ old: operator === 'publibike' }}>
+    <div class="ebike-battery">
       {ebikeBatteryBar(ebike)}
       <span>{name}</span>
       <Show when={!Number.isNaN(battery)}>
@@ -167,12 +60,11 @@ function ebikeBattery(ebike: EBike) {
 }
 
 function batteryRow(props: { ebikes: EBike[], visible: boolean }) {
-  const { ebikes, visible } = props
   return (
-    <Show when={visible}>
+    <Show when={props.visible}>
       <tr class="battery-row">
         <td colSpan={5}>
-          <div><For each={ebikes} children={ebikeBattery} /></div>
+          <div><For each={props.ebikes} children={ebikeBattery} /></div>
         </td>
       </tr>
     </Show>
@@ -190,30 +82,28 @@ function ebikeBatteryBar(ebike: EBike) {
 }
 
 function stationRow(props: WithDistance<Station>) {
-  const { distance, station } = props
-  const { latitude, longitude } = station.pos
   const [barVisible, setBarVisible] = createSignal(false)
-  const hasEbikes = station.ebikes.length > 0
-  const shownEbikes = station.ebikes.slice(0, MAX_SHOWN_EBIKES)
+  const hasEbikes = () => props.station.ebikes.length > 0
+  const shownEbikes = () => props.station.ebikes.slice(0, MAX_SHOWN_EBIKES)
   return (
     <>
-      <tr onClick={() => hasEbikes && setBarVisible(!barVisible())} classList={{ 'is-open': barVisible() }}>
+      <tr onClick={() => hasEbikes() && setBarVisible(!barVisible())} classList={{ 'is-open': barVisible() }}>
         <td class="align-left">
-          <a href={`https://maps.google.com/maps?q=${latitude},${longitude}`} rel="noopener noreferrer" target="_blank">
-            {station.name}
+          <a href={`https://maps.google.com/maps?q=${props.station.pos.latitude},${props.station.pos.longitude}`} rel="noopener noreferrer" target="_blank">
+            {props.station.name}
           </a>
         </td>
         <td>
-          {distance.toFixed(0)}
+          {props.distance.toFixed(0)}
           m
         </td>
-        <td>{station.bikes}</td>
-        <td>{station.ebikes.length}</td>
+        <td>{props.station.bikes}</td>
+        <td>{props.station.ebikes.length}</td>
         <td class="align-left batteries">
-          <For each={shownEbikes} children={ebikeBatteryBar} />
+          <For each={shownEbikes()} children={ebikeBatteryBar} />
         </td>
       </tr>
-      {station.ebikes.length > 0 ? batteryRow({ ebikes: shownEbikes, visible: barVisible() }) : null}
+      {props.station.ebikes.length > 0 ? batteryRow({ ebikes: shownEbikes(), visible: barVisible() }) : null}
     </>
   )
 }
@@ -239,30 +129,30 @@ function loader(resource: Resource<any>, label: string) {
 
 function App() {
   const [userLocation, { refetch: refetchUserLocation }] = createResource(fetchUserLocation)
-  const [publiMap] = createResource(fetchPubliMap)
-  const [veloMap] = createResource(fetchVeloMap)
-  const [publiStations] = createResource(...dependOn({ userLocation, stations: publiMap }, stationsFetcher(fetchPubliStation)))
-  const [veloStations] = createResource(...dependOn({ userLocation, stations: veloMap }, stationsFetcher(fetchVeloStation)))
-  const [stations] = createResource(...dependOn({ publiStations, veloStations }, reconcileStations))
+  const [veloStations, { refetch: refetchVeloStations }] = createResource(fetchAppStations)
+  const [stations] = createResource(...dependOn({ userLocation, stations: veloStations }, getNearbyStations))
 
   const isFullyReady = createMemo(() => new Set(['ready', 'refreshing']).has(stations.state))
-  const hasError = createMemo(() => userLocation.error !== undefined || publiMap.error !== undefined || veloMap.error !== undefined || publiStations.error !== undefined || veloStations.error !== undefined)
+  const hasError = createMemo(() => userLocation.error !== undefined || veloStations.error !== undefined || stations.error !== undefined)
   const canRefresh = createMemo(() => isFullyReady() || hasError())
-  const isRefreshing = createMemo(() => userLocation.state === 'refreshing' || publiMap.state === 'refreshing' || veloMap.state === 'refreshing' || publiStations.state === 'refreshing' || veloStations.state === 'refreshing')
+  const isRefreshing = createMemo(() => userLocation.state === 'refreshing' || veloStations.state === 'refreshing' || stations.state === 'refreshing')
+
+  const refreshAll = () => {
+    refetchUserLocation()
+    refetchVeloStations()
+  }
 
   return (
     <>
-      <h1>PubliBike Locator</h1>
+      <h1>PubliBike / Velospot Locator</h1>
       <main>
         <Show
           when={isFullyReady()}
           fallback={(
             <aside id="loading">
               {loader(userLocation, 'GPS location')}
-              {loader(publiMap, 'PubliBike map')}
-              {loader(veloMap, 'Velospot map')}
-              {loader(publiStations, 'PubliBike stations')}
               {loader(veloStations, 'Velospot stations')}
+              {loader(stations, 'Nearby stations')}
             </aside>
           )}
         >
@@ -283,12 +173,12 @@ function App() {
         </Show>
       </main>
       <Show when={canRefresh()}>
-        <button type="button" id="refresh" disabled={isRefreshing()} onClick={refetchUserLocation}>
+        <button type="button" id="refresh" disabled={isRefreshing()} onClick={refreshAll}>
           {isRefreshing() ? 'Refreshing…' : 'Refresh'}
         </button>
       </Show>
       <footer>
-        Unofficial PubliBike / Velospot lookup tool
+        Unofficial Velospot lookup tool
         {' ⋅ '}
         <a href="https://github.com/delroth/publibike-locator" rel="noopener noreferrer" target="_blank">Code</a>
         {' ⋅ '}
