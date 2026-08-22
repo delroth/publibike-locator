@@ -4,15 +4,25 @@ export const MAX_SHOWN_EBIKES = 6
 export const MAX_STATIONS = 10
 export const MAX_DISTANCE_IN_METERS = 1000
 export const TESTDATA_URL = './testdata'
-export const PUBLIBIKE_STATIONS_URL = 'https://rest.publibike.ch/v1/public/all/stations'
-export const VELOSPOT_STATION_URL = PUBLIBIKE_STATIONS_URL
+export const VELOSPOT_STATION_URL = 'https://velospot.info/customer/public/api/pbvsng'
 export const NO_REFERRER = { referrerPolicy: 'no-referrer' } as RequestInit
 
+export const API_AUTHENTICATION_KEY = (() => {
+  const rot13 = (s: string) =>
+    s.replace(/[a-z]/gi, (char) => {
+      const code = char.charCodeAt(0)
+      const base = char <= 'Z' ? 65 : 97
+      return String.fromCharCode(((code - base + 13) % 26) + base)
+    })
+  // much H3CK4R, very secure.
+  return rot13('eOyVGmxCSeSeyWr$mR7B')
+})()
+
 export const DEFAULT_HEADERS: Record<string, string> = {
-  'Accept': 'application/json, text/plain, */*',
-  'Accept-Language': 'en-US,en;q=0.5',
-  'Origin': 'https://www.publibike.ch',
-  'Referer': 'https://www.publibike.ch/',
+  'accept': 'application/json, text/plain, */*',
+  'accept-language': 'en',
+  'user-agent': 'Dart/3.12 (dart:io)',
+  'x-timezone': 'CEST',
 }
 
 export interface LatLon {
@@ -46,31 +56,39 @@ export interface WithDistance<T> {
   distance: number
 }
 
-export interface ApiVelospotStation {
-  station_id: string
-  station_name: string
-  station_address?: string
-  lat: string
-  lng: string
-  totalBike?: number
-  totalNonElectricalBike?: number
-  totalElectricalBike?: number
-  totalCargoBike?: number
-  totalEscooter?: number
-  totalGlider?: number
-  stationNumber?: string
+export interface ApiVehicle {
+  id?: string
+  name: string
+  type: number
+  voltage?: number
+  lock_type?: number
+  ebike_km_potential?: string
+  lock_number?: string
   [key: string]: unknown
 }
 
-export interface ApiStationsResponse {
-  publibike?: {
-    stations?: unknown[]
-  }
-  velospot?: {
-    responseData?: ApiVelospotStation[]
-    [key: string]: unknown
-  }
+export interface ApiStationDetails {
+  id: string
+  latitude: number
+  longitude: number
+  name: string
+  address?: string
+  out_of_service?: boolean
+  vehicles?: ApiVehicle[]
   [key: string]: unknown
+}
+
+export interface ApiVehicleCount {
+  count: number
+  type: number
+}
+
+export interface ApiStationMap {
+  id: string
+  latitude: number
+  longitude: number
+  out_of_service?: boolean
+  available_vehicles?: ApiVehicleCount[]
 }
 
 export function cleanStationName(name: string): string {
@@ -83,37 +101,55 @@ export function cleanStationName(name: string): string {
   return name.trim()
 }
 
-export function parseStations(data: ApiStationsResponse | ApiVelospotStation[]): Station[] {
-  const rawStations: ApiVelospotStation[] = Array.isArray(data)
-    ? data
-    : (data?.velospot?.responseData ?? [])
+export function parseStationDetails(data: ApiStationDetails): Station {
+  const vehicles = data.vehicles ?? []
+  const bikes = vehicles.filter(v => v.type === BikeType.Bike).length
+  const ebikes: EBike[] = vehicles
+    .filter(v => v.type === BikeType.EBike)
+    .map((v) => {
+      const voltage = v.voltage ?? Number.NaN
+      const battery = v.lock_type === 1 ? Math.round(batteryVoltage36v(voltage)) : voltage
+      return {
+        operator: 'velospot' as Operator,
+        name: v.name.replace(/e$/, ''),
+        battery,
+      }
+    })
+    .sort(batterySort)
 
-  return rawStations.map((station) => {
-    const bikes = station.totalNonElectricalBike ?? 0
-    const ebikesCount = station.totalElectricalBike ?? 0
-    const ebikes: EBike[] = Array.from({ length: ebikesCount }, (_, i) => ({
-      operator: 'velospot',
-      name: `EBike ${i + 1}`,
-      battery: Number.NaN,
-    }))
-    const rawName = station.station_name || `Station #${station.stationNumber || station.station_id}`
-    return {
-      id: station.station_id || station.stationNumber || '',
-      name: cleanStationName(rawName),
-      pos: {
-        latitude: Number.parseFloat(station.lat),
-        longitude: Number.parseFloat(station.lng),
-      },
-      bikes,
-      ebikes,
-    }
-  })
+  return {
+    id: data.id,
+    name: cleanStationName(data.name),
+    pos: {
+      latitude: data.latitude,
+      longitude: data.longitude,
+    },
+    bikes,
+    ebikes,
+  }
 }
 
-export async function fetchStations(
-  url: string = PUBLIBIKE_STATIONS_URL,
-  init: RequestInit = {},
-): Promise<Station[]> {
+export async function fetchVeloStation(
+  id: string,
+  url: string = `${VELOSPOT_STATION_URL}/stationDetails?${new URLSearchParams({ stationId: id }).toString()}`,
+  init: RequestInit = NO_REFERRER,
+): Promise<Station> {
+  const response = await fetch(url, {
+    ...init,
+    headers: {
+      ...DEFAULT_HEADERS,
+      ApiAuthenticationKey: API_AUTHENTICATION_KEY,
+      ...init.headers,
+    },
+  })
+  const json = await response.json() as ApiStationDetails
+  return parseStationDetails(json)
+}
+
+export async function fetchVeloMap(
+  url: string = `${VELOSPOT_STATION_URL}/stations`,
+  init: RequestInit = NO_REFERRER,
+): Promise<StationRef[]> {
   const response = await fetch(url, {
     ...init,
     headers: {
@@ -121,11 +157,28 @@ export async function fetchStations(
       ...init.headers,
     },
   })
-  const json = await response.json() as ApiStationsResponse
-  return parseStations(json)
+  const json = await response.json() as ApiStationMap[]
+  return json.map(({ id, latitude, longitude }) => ({
+    id,
+    pos: { latitude, longitude } as LatLon,
+  }))
 }
 
-export const fetchVeloStations = fetchStations
+export function stationsFetcher(fetcher: (id: string) => Promise<Station>) {
+  return async ({ userLocation, stations }: { userLocation: LatLon, stations: StationRef[] }) => {
+    const near = stations
+      .map(station => ({ station, distance: distanceInMeters(userLocation, station.pos) }))
+      .filter(({ distance }) => distance <= MAX_DISTANCE_IN_METERS)
+      .sort(distanceSort)
+      .slice(0, MAX_STATIONS)
+    const promises = await Promise.allSettled(near.map(
+      async ({ distance, station: { id } }) => ({ distance, station: await fetcher(id) } as WithDistance<Station>),
+    ))
+    return promises
+      .filter(({ status }) => status === 'fulfilled')
+      .map(result => (result as PromiseFulfilledResult<WithDistance<Station>>).value)
+  }
+}
 
 export function batterySort(a: EBike, b: EBike) {
   return (b.battery || 0) - (a.battery || 0)

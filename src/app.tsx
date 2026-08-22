@@ -7,11 +7,13 @@ import { createMemo, createResource, createSignal, For, Show } from 'solid-js'
 import { render } from 'solid-js/web'
 import {
   dependOn,
-  fetchStations,
-  getNearbyStations,
+  fetchVeloMap,
+  fetchVeloStation,
   MAX_SHOWN_EBIKES,
   NO_REFERRER,
-  PUBLIBIKE_STATIONS_URL,
+  stationsFetcher,
+  TESTDATA_URL,
+  VELOSPOT_STATION_URL,
 } from './util'
 
 const LOCAL_DEBUG = import.meta.env.DEV
@@ -36,10 +38,21 @@ function fetchUserLocation() {
   )
 }
 
-function fetchAppStations() {
-  return fetchStations(
-    PUBLIBIKE_STATIONS_URL,
+function fetchAppMap() {
+  return fetchVeloMap(
+    LOCAL_DEBUG
+      ? `${TESTDATA_URL}/velospot.stations.json`
+      : `${VELOSPOT_STATION_URL}/stations`,
     { cache: 'force-cache', ...NO_REFERRER },
+  )
+}
+
+function fetchAppStation(id: string) {
+  return fetchVeloStation(
+    id,
+    LOCAL_DEBUG
+      ? `${TESTDATA_URL}/velospot.${id}.json`
+      : `${VELOSPOT_STATION_URL}/stationDetails?${new URLSearchParams({ stationId: id }).toString()}`,
   )
 }
 
@@ -129,8 +142,8 @@ function loader(resource: Resource<any>, label: string) {
 
 function App() {
   const [userLocation, { refetch: refetchUserLocation }] = createResource(fetchUserLocation)
-  const [veloStations, { refetch: refetchVeloStations }] = createResource(fetchAppStations)
-  const [stations] = createResource(...dependOn({ userLocation, stations: veloStations }, getNearbyStations))
+  const [veloStations, { refetch: refetchVeloStations }] = createResource(fetchAppMap)
+  const [stations] = createResource(...dependOn({ userLocation, stations: veloStations }, stationsFetcher(fetchAppStation)))
 
   const isFullyReady = createMemo(() => new Set(['ready', 'refreshing']).has(stations.state))
   const hasError = createMemo(() => userLocation.error !== undefined || veloStations.error !== undefined || stations.error !== undefined)
